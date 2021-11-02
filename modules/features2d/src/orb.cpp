@@ -927,14 +927,18 @@ static void computeKeyPoints(const Mat& imagePyramid,
         Mat mkeypoints;
         uploadORBKeypointsM(allKeypoints, ukeypoints_buf, mkeypoints);
         Mat mresponses(1, nkeypoints, CV_32F);
+        int blockSize = 7;
+        float scale = 1.f/((1 << 2) * blockSize * 255.f);
+        float scale_sq_sq = scale * scale * scale * scale;
         metal_harris_responses(
                             imagePyramid,
                             mlayerInfo,
                             mkeypoints,
                             mresponses, 
                             nkeypoints,
-                            7,
-                            HARRIS_K);
+                            blockSize,
+                            HARRIS_K,
+                            scale_sq_sq);
         mresponses.copyTo(responses);
         for( i = 0; i < nkeypoints; i++ )
             allKeypoints[i].response = responses.at<float>(i);

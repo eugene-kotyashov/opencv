@@ -22,6 +22,7 @@ void metal_harris_responses(
                             cv::Mat& responses, 
                             int nkeypoints,
                             int blockSize,
-                            float harris_k);
+                            float harris_k,
+                            float scaler_sq_sq);
 
 #endif
