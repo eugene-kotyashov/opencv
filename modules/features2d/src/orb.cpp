@@ -36,12 +36,12 @@
 
 #include "precomp.hpp"
 #include "opencl_kernels_features2d.hpp"
+#include "metal_opencv_orb_func.h"
 #include <iterator>
 
 #ifndef CV_IMPL_ADD
 #define CV_IMPL_ADD(x)
 #endif
-
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 namespace cv
@@ -56,6 +56,26 @@ template<typename _Tp> inline void copyVectorToUMat(const std::vector<_Tp>& v, O
     else
         Mat(1, (int)(v.size()*sizeof(v[0])), CV_8U, (void*)&v[0]).copyTo(um);
 }
+
+
+#ifdef USE_METAL
+template<typename _Tp> inline void copyVectorToMat(const std::vector<_Tp>& v, OutputArray m)
+{
+    if(v.empty())
+        m.release();
+    else
+        Mat(1, (int)(v.size()*sizeof(v[0])), CV_8U, (void*)&v[0]).copyTo(m);
+}
+
+static void uploadORBKeypointsM(const std::vector<KeyPoint>& src, std::vector<Vec3i>& buf, OutputArray dst)
+{
+    size_t i, n = src.size();
+    buf.resize(std::max(buf.size(), n));
+    for( i = 0; i < n; i++ )
+        buf[i] = Vec3i(cvRound(src[i].pt.x), cvRound(src[i].pt.y), src[i].octave);
+    copyVectorToMat(buf, dst);
+}
+#endif
 
 #ifdef HAVE_OPENCL
 static bool
@@ -898,6 +918,27 @@ static void computeKeyPoints(const Mat& imagePyramid,
         }
 
         if( !useOCL )
+#endif
+#ifdef USE_METAL
+        //TODO: set data for harris responses structure
+        
+        Mat mlayerInfo;
+        copyVectorToMat(layerInfo, mlayerInfo);
+        Mat mkeypoints;
+        uploadORBKeypointsM(allKeypoints, ukeypoints_buf, mkeypoints);
+        Mat mresponses(1, nkeypoints, CV_32F);
+        metal_harris_responses(
+                            imagePyramid,
+                            mlayerInfo,
+                            mkeypoints,
+                            mresponses, 
+                            nkeypoints,
+                            7,
+                            HARRIS_K);
+        mresponses.copyTo(responses);
+        for( i = 0; i < nkeypoints; i++ )
+            allKeypoints[i].response = responses.at<float>(i);
+        if (false )
 #endif
             HarrisResponses(imagePyramid, layerInfo, allKeypoints, 7, HARRIS_K);
 
