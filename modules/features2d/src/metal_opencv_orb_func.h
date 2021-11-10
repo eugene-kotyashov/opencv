@@ -18,7 +18,7 @@
 void metal_harris_responses(
                             const cv::Mat& img,
                             const cv::Mat& layerinfo,
-                            cv::Mat& pts,
+                            const cv::Mat& pts,
                             cv::Mat& responses, 
                             int nkeypoints,
                             int blockSize,
