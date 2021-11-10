@@ -8,7 +8,6 @@
 #ifndef metal_opencv_orb_func_h
 #define metal_opencv_orb_func_h
 
-#define USE_METAL
 
 #include <stdint.h>
 #include <vector>
