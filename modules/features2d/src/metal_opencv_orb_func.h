@@ -24,4 +24,8 @@ void metal_harris_responses(
                             float harris_k,
                             float scaler_sq_sq);
 
+void metal_fastKptKernel(const cv::Mat& img,
+                         cv::Mat& kp1,
+                         int maxKeypoints,
+                         int threshold);
 #endif
