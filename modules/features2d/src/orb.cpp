@@ -920,8 +920,6 @@ static void computeKeyPoints(const Mat& imagePyramid,
         if( !useOCL )
 #endif
 #ifdef USE_METAL
-        //TODO: set data for harris responses structure
-        printf("USING METAL!\n");
         Mat mlayerInfo;
         copyVectorToMat(layerInfo, mlayerInfo);
         Mat mkeypoints;
