@@ -412,23 +412,14 @@ static bool metal_FAST( InputArray _img, std::vector<KeyPoint>& keypoints,
         for( i = 0; i < counter; i++ )
             keypoints.push_back(KeyPoint((float)pt[i].x, (float)pt[i].y, 7.f, -1, 1.f));
     }
+
     else
     {
-        UMat kp2(1, maxKeypoints*3+1, CV_32S);
-        UMat ucounter2 = kp2(Rect(0,0,1,1));
+        Mat kp2(1, maxKeypoints*3+1, CV_32S);
+        Mat ucounter2 = kp2(Rect(0,0,1,1));
         ucounter2.setTo(Scalar::all(0));
-/*
-        ocl::Kernel fastNMSKernel("FAST_nonmaxSupression", ocl::features2d::fast_oclsrc);
-        if (fastNMSKernel.empty())
-            return false;
 
-        size_t globalsize_nms[] = { (size_t)counter };
-        if( !fastNMSKernel.args(ocl::KernelArg::PtrReadOnly(kp1),
-                                ocl::KernelArg::PtrReadWrite(kp2),
-                                ocl::KernelArg::ReadOnly(img),
-                                counter, counter).run(1, globalsize_nms, 0, true))
-            return false;
-*/
+        metal_fastNMSKernel(img, kp1, kp2, counter, maxKeypoints);
 
         Mat m2;
         kp2(Rect(0, 0, counter*3+1, 1)).copyTo(m2);
@@ -574,6 +565,11 @@ void FAST(InputArray _img, std::vector<KeyPoint>& keypoints, int threshold, bool
 
     CV_OCL_RUN(_img.isUMat() && type == FastFeatureDetector::TYPE_9_16,
                ocl_FAST(_img, keypoints, threshold, nonmax_suppression, 10000));
+    
+#ifdef USE_METAL
+    metal_FAST(_img, keypoints, threshold, nonmax_suppression, 10000);
+    return;
+#endif
 
     cv::Mat img = _img.getMat();
     CALL_HAL(fast_dense, hal_FAST, img, keypoints, threshold, nonmax_suppression, type);
