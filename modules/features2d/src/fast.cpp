@@ -387,15 +387,13 @@ static bool metal_FAST( InputArray _img, std::vector<KeyPoint>& keypoints,
         return false;
     size_t globalsize[] = { (size_t)img.cols-6, (size_t)img.rows-6 };
 
-    Mat kp1(1, maxKeypoints*2+1, CV_32S);
+    Mat kp1(1, maxKeypoints*2+1, CV_32S, Scalar::all(0));
 
-    Mat ucounter1(kp1, Rect(0,0,1,1));
-    ucounter1.setTo(Scalar::all(0));
+    Mat mcounter(kp1, Rect(0,0,1,1));
+    mcounter.setTo(Scalar::all(0));
 
     metal_fastKptKernel(img, kp1, maxKeypoints, threshold);
 
-    Mat mcounter;
-    ucounter1.copyTo(mcounter);
     int i, counter = mcounter.at<int>(0);
     counter = std::min(counter, maxKeypoints);
 
