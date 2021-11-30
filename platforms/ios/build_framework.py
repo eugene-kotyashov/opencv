@@ -199,6 +199,7 @@ class Builder:
             "cmake",
             "-GXcode",
             "-DAPPLE_FRAMEWORK=ON",
+            "-DBUILD_opencv_ts=ON",
             "-DCMAKE_INSTALL_PREFIX=install",
             "-DCMAKE_BUILD_TYPE=%s" % self.getConfiguration(),
             "-DOPENCV_INCLUDE_INSTALL_PATH=include",
