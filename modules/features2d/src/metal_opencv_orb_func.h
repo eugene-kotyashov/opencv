@@ -35,8 +35,10 @@ void metal_fastNMSKernel(cv::InputArray img,
                          int maxKeypoints);
 
 void metal_createImagePyramid(
-    size_t levelCount,
-    cv::InputArray img,
-    cv::OutputArray imagePyramid);
+                        size_t levelCount,
+                        int borderSize, 
+                        cv::InputArray img,
+                        cv::InputArray pyramidLayerInfo,
+                        cv::OutputArray imagePyramid);
 
 #endif

@@ -1106,7 +1106,7 @@ void ORB_Impl::detectAndCompute( InputArray _image, InputArray _mask,
         maskPyramid.create(bufSize, CV_8U);
 
 #ifdef USE_METAL
-    metal_createImagePyramid(nLevels, image, imagePyramid);
+    metal_createImagePyramid(nLevels, border, image, layerInfo,  imagePyramid);
 #endif
 
     Mat prevImg = image, prevMask = mask;
