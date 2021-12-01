@@ -1105,6 +1105,10 @@ void ORB_Impl::detectAndCompute( InputArray _image, InputArray _mask,
     if( !mask.empty() )
         maskPyramid.create(bufSize, CV_8U);
 
+#ifdef USE_METAL
+    metal_createImagePyramid(nLevels, image, imagePyramid);
+#endif
+
     Mat prevImg = image, prevMask = mask;
 
     // Pre-compute the scale pyramids
