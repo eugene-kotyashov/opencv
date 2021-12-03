@@ -1101,13 +1101,10 @@ void ORB_Impl::detectAndCompute( InputArray _image, InputArray _mask,
     }
     bufSize.height = level_ofs.y + level_dy;
 
-    imagePyramid.create(bufSize, CV_8U);
+     imagePyramid.create(bufSize, CV_8U);
     if( !mask.empty() )
         maskPyramid.create(bufSize, CV_8U);
 
-#ifdef USE_METAL
-    metal_createImagePyramid(nLevels, border, image, layerInfo,  imagePyramid);
-#endif
 
     Mat prevImg = image, prevMask = mask;
 
@@ -1130,7 +1127,11 @@ void ORB_Impl::detectAndCompute( InputArray _image, InputArray _mask,
         // Compute the resized image
         if( level != firstLevel )
         {
+#ifdef USE_METAL
+            metal_resizeImage( border, sz, prevImg, currImg);
+#else
             resize(prevImg, currImg, sz, 0, 0, INTER_LINEAR_EXACT);
+#endif
             if( !mask.empty() )
             {
                 resize(prevMask, currMask, sz, 0, 0, INTER_LINEAR_EXACT);
