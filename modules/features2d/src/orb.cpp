@@ -761,7 +761,7 @@ int ORB_Impl::defaultNorm() const
     }
 }
 
-#ifdef HAVE_OPENCL
+//#ifdef HAVE_OPENCL
 static void uploadORBKeypoints(const std::vector<KeyPoint>& src, std::vector<Vec3i>& buf, OutputArray dst)
 {
     size_t i, n = src.size();
@@ -794,7 +794,7 @@ static void uploadORBKeypoints(const std::vector<KeyPoint>& src,
     }
     copyVectorToUMat(buf, dst);
 }
-#endif
+//#endif
 
 /** Compute the ORB_Impl keypoints on an image
  * @param image_pyramid the image pyramid to compute the features and descriptors on
@@ -813,7 +813,11 @@ static void computeKeyPoints(const Mat& imagePyramid,
                              bool useOCL, int fastThreshold  )
 {
 #ifndef HAVE_OPENCL
-    CV_UNUSED(uimagePyramid);CV_UNUSED(ulayerInfo);CV_UNUSED(useOCL);
+    CV_UNUSED(uimagePyramid);
+#ifndef USE_METAL
+    CV_UNUSED(ulayerInfo);
+#endif
+    CV_UNUSED(useOCL);
 #endif
 
     int i, nkeypoints, level, nlevels = (int)layerInfo.size();
@@ -920,8 +924,7 @@ static void computeKeyPoints(const Mat& imagePyramid,
         if( !useOCL )
 #endif
 #ifdef USE_METAL
-        Mat mlayerInfo;
-        copyVectorToMat(layerInfo, mlayerInfo);
+        
         Mat mkeypoints;
         uploadORBKeypointsM(allKeypoints, ukeypoints_buf, mkeypoints);
         Mat mresponses(1, nkeypoints, CV_32F);
@@ -930,7 +933,7 @@ static void computeKeyPoints(const Mat& imagePyramid,
         float scale_sq_sq = scale * scale * scale * scale;
         metal_harris_responses(
                             imagePyramid,
-                            mlayerInfo,
+                            ulayerInfo,
                             mkeypoints,
                             mresponses, 
                             nkeypoints,
@@ -989,6 +992,15 @@ static void computeKeyPoints(const Mat& imagePyramid,
     }
 
     if( !useOCL )
+#endif
+#ifdef USE_METAL
+    uploadORBKeypoints(allKeypoints, ukeypoints_buf, ukeypoints);
+    metal_ICAngles(imagePyramid, ulayerInfo, ukeypoints, nkeypoints, uresponses, umax, halfPatchSize);
+    uresponses.copyTo(responses);
+    for( i = 0; i < nkeypoints; i++ )
+        allKeypoints[i].angle = responses.at<float>(i);
+
+    if (false)
 #endif
     {
         ICAngles(imagePyramid, layerInfo, allKeypoints, umax, halfPatchSize);
@@ -1162,6 +1174,10 @@ void ORB_Impl::detectAndCompute( InputArray _image, InputArray _mask,
 
     if( useOCL )
         copyVectorToUMat(layerOfs, ulayerInfo);
+
+    #if USE_METAL
+        copyVectorToUMat(layerOfs, ulayerInfo);
+    #endif
 
     if( do_keypoints )
     {

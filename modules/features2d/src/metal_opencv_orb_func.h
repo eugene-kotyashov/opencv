@@ -15,7 +15,7 @@
 
 void metal_harris_responses(
     cv::InputArray img,
-    const cv::Mat &layerinfo,
+    cv::InputArray &layerinfo,
     const cv::Mat &pts,
     cv::Mat &responses,
     int nkeypoints,
@@ -39,5 +39,14 @@ void metal_resizeImage(
                         cv::Size finalSize,
                         cv::InputArray imgIn,
                         cv::OutputArray imgOut);
+
+void metal_ICAngles(   
+                    cv::InputArray img,
+                    cv::InputArray layerinfo,
+                    cv::InputArray keypoints,
+                    size_t nkeypoints, 
+                    cv::OutputArray responses, 
+                    const std::vector<int> & u_max,
+                    int half_k);
 
 #endif
