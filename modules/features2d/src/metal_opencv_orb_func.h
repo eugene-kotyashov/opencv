@@ -48,5 +48,7 @@ void metal_ICAngles(
                     cv::OutputArray responses, 
                     const std::vector<int> & u_max,
                     int half_k);
+                    
+void metal_debug_image_kernel(cv::InputArray imgIn);
 
 #endif
