@@ -48,7 +48,19 @@ void metal_ICAngles(
                     cv::OutputArray responses, 
                     const std::vector<int> & u_max,
                     int half_k);
+
+void metal_computeOrbDescriptors(
+    cv::InputArray imgbuf,
+    cv::InputArray layerInfo,
+    cv::InputArray keypoints,
+    cv::OutputArray desc,
+    cv::InputArray pattern,
+    int nkeypoints,
+    int dsize,
+    int wta_k);
                     
 void metal_debug_image_kernel(cv::InputArray imgIn);
+
+
 
 #endif
