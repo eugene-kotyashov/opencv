@@ -58,6 +58,8 @@ void metal_computeOrbDescriptors(
     int nkeypoints,
     int dsize,
     int wta_k);
+
+void metal_gaussianBlurForBRIEF(cv::InputOutputArray imgInOut );
                     
 void metal_debug_image_kernel(cv::InputArray imgIn);
 

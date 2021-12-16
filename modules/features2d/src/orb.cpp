@@ -1251,7 +1251,11 @@ void ORB_Impl::detectAndCompute( InputArray _image, InputArray _mask,
             Mat workingMat = imagePyramid(layerInfo[level]);
 
             //boxFilter(working_mat, working_mat, working_mat.depth(), Size(5,5), Point(-1,-1), true, BORDER_REFLECT_101);
+#ifdef USE_METAL
+            metal_gaussianBlurForBRIEF( workingMat);
+#else
             GaussianBlur(workingMat, workingMat, Size(7, 7), 2, 2, BORDER_REFLECT_101);
+#endif
         }
 
 #ifdef HAVE_OPENCL
@@ -1274,6 +1278,18 @@ void ORB_Impl::detectAndCompute( InputArray _image, InputArray _mask,
         }
 
         if( !useOCL )
+#endif
+#ifdef USE_METAL
+        std::vector<Vec4i> kptbuf;
+        UMat ukeypoints, upattern;
+        copyVectorToUMat(pattern, upattern);
+        uploadORBKeypoints(keypoints, layerScale, kptbuf, ukeypoints);
+
+        UMat udescriptors = _descriptors.getUMat();
+        metal_computeOrbDescriptors(imagePyramid, ulayerInfo,
+                                           ukeypoints, udescriptors, upattern,
+                                           nkeypoints, dsize, wta_k);
+
 #endif
         {
             Mat descriptors = _descriptors.getMat();
