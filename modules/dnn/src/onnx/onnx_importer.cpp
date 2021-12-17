@@ -100,6 +100,8 @@ private:
     const DispatchMap dispatch;
     static const DispatchMap buildDispatchMap();
 
+    void parseArg                  (LayerParams& layerParams, const opencv_onnx::NodeProto& node_proto);
+    void parseMaxUnpool            (LayerParams& layerParams, const opencv_onnx::NodeProto& node_proto);
     void parseMaxPool              (LayerParams& layerParams, const opencv_onnx::NodeProto& node_proto);
     void parseAveragePool          (LayerParams& layerParams, const opencv_onnx::NodeProto& node_proto);
     void parseReduce               (LayerParams& layerParams, const opencv_onnx::NodeProto& node_proto);
@@ -768,12 +770,68 @@ void ONNXImporter::handleNode(const opencv_onnx::NodeProto& node_proto)
     }
 }
 
+void ONNXImporter::parseArg(LayerParams& layerParams, const opencv_onnx::NodeProto& node_proto)
+{
+    const std::string& layer_type = node_proto.op_type();
+    layerParams.type = "Arg";
+    layerParams.set("op", layer_type == "ArgMax" ? "max" : "min");
+    addLayer(layerParams, node_proto);
+}
+
+void setCeilMode(LayerParams& layerParams)
+{
+    // auto_pad attribute is deprecated and uses ceil
+    if (layerParams.has("pad_mode"))
+    {
+        layerParams.set("ceil_mode", true);
+    }
+    else if (!layerParams.has("ceil_mode"))
+    {
+        layerParams.set("ceil_mode", false);
+    }
+}
+
+void ONNXImporter::parseMaxUnpool(LayerParams& layerParams, const opencv_onnx::NodeProto& node_proto)
+{
+    layerParams.type = "MaxUnpool";
+
+    DictValue kernel_shape = layerParams.get("kernel_size");
+    CV_Assert(kernel_shape.size() == 2);
+    layerParams.set("pool_k_w", kernel_shape.get<int>(0));
+    layerParams.set("pool_k_h", kernel_shape.get<int>(1));
+
+    int pool_pad_w = 0, pool_pad_h = 0;
+    if (layerParams.has("pad"))
+    {
+        DictValue pads = layerParams.get("pad");
+        CV_CheckEQ(pads.size(), 2, "");
+        pool_pad_w = pads.get<int>(0);
+        pool_pad_h = pads.get<int>(1);
+    }
+    layerParams.set("pool_pad_w", pool_pad_w);
+    layerParams.set("pool_pad_h", pool_pad_h);
+
+
+    int pool_stride_w = 1, pool_stride_h = 1;
+    if (layerParams.has("stride"))
+    {
+        DictValue strides = layerParams.get("stride");
+        CV_CheckEQ(strides.size(), 2, "");
+        pool_stride_w = strides.get<int>(0);
+        pool_stride_h = strides.get<int>(1);
+    }
+    layerParams.set("pool_stride_w", pool_stride_w);
+    layerParams.set("pool_stride_h", pool_stride_h);
+
+    addLayer(layerParams, node_proto);
+}
+
 void ONNXImporter::parseMaxPool(LayerParams& layerParams, const opencv_onnx::NodeProto& node_proto)
 {
     int depth = layerParams.get<int>("depth", CV_32F);
     layerParams.type = (depth == CV_8S) ? "PoolingInt8" : "Pooling";
     layerParams.set("pool", "MAX");
-    layerParams.set("ceil_mode", layerParams.has("pad_mode"));
+    setCeilMode(layerParams);
     addLayer(layerParams, node_proto);
 }
 
@@ -781,7 +839,7 @@ void ONNXImporter::parseAveragePool(LayerParams& layerParams, const opencv_onnx:
 {
     layerParams.type = "Pooling";
     layerParams.set("pool", "AVE");
-    layerParams.set("ceil_mode", layerParams.has("pad_mode"));
+    setCeilMode(layerParams);
     layerParams.set("ave_pool_padded_area", framework_name == "pytorch");
     addLayer(layerParams, node_proto);
 }
@@ -802,11 +860,11 @@ void ONNXImporter::parseReduce(LayerParams& layerParams, const opencv_onnx::Node
         pool = "AVE";
     layerParams.set("pool", pool);
     layerParams.set("global_pooling", !layerParams.has("axes"));
+    bool keepdims = layerParams.get<int>("keepdims", 1) == 1;
     if (layerParams.has("axes") && (layer_type == "ReduceMean" || layer_type == "ReduceSum" || layer_type == "ReduceMax"))
     {
         MatShape inpShape = outShapes[node_proto.input(0)];
         DictValue axes = layerParams.get("axes");
-        bool keepdims = layerParams.get<int>("keepdims");
         MatShape targetShape;
         std::vector<bool> shouldDelete(inpShape.size(), false);
         for (int i = 0; i < axes.size(); i++) {
@@ -914,7 +972,10 @@ void ONNXImporter::parseReduce(LayerParams& layerParams, const opencv_onnx::Node
     }
     else if (!layerParams.has("axes") && (layer_type == "ReduceMean" || layer_type == "ReduceSum" || layer_type == "ReduceMax"))
     {
-        CV_CheckEQ(layerParams.get<int>("keepdims"), 0, "layer only supports keepdims = false");
+        IterShape_t shapeIt = outShapes.find(node_proto.input(0));
+        CV_Assert(shapeIt != outShapes.end());
+        const size_t dims = keepdims ? shapeIt->second.size() : 1;
+
         LayerParams reshapeLp;
         reshapeLp.name = layerParams.name + "/reshape";
         reshapeLp.type = "Reshape";
@@ -936,8 +997,8 @@ void ONNXImporter::parseReduce(LayerParams& layerParams, const opencv_onnx::Node
         addLayer(poolLp, node_proto);
 
         layerParams.type = "Reshape";
-        int targetShape[] = {1};
-        layerParams.set("dim", DictValue::arrayInt(&targetShape[0], 1));
+        std::vector<int> targetShape(dims, 1);
+        layerParams.set("dim", DictValue::arrayInt(targetShape.data(), targetShape.size()));
 
         node_proto.set_input(0, node_proto.output(0));
         node_proto.set_output(0, layerParams.name);
@@ -1077,6 +1138,7 @@ void ONNXImporter::parseSplit(LayerParams& layerParams, const opencv_onnx::NodeP
     }
     int depth = layerParams.get<int>("depth", CV_32F);
     layerParams.type = (depth == CV_8S) ? "SliceInt8" : "Slice";
+    layerParams.set("axis", layerParams.get<float>("axis", 0));
     addLayer(layerParams, node_proto);
 }
 
@@ -1085,6 +1147,14 @@ void ONNXImporter::parseBias(LayerParams& layerParams, const opencv_onnx::NodePr
     opencv_onnx::NodeProto node_proto = node_proto_;
     const std::string& layer_type = node_proto.op_type();
     bool isSub = layer_type == "Sub";
+
+    if (layer_type == "Sum" && node_proto.input_size() == 1)
+    {
+        layerParams.type = "Identity";
+        addLayer(layerParams, node_proto);
+        return;
+    }
+
     CV_Assert((node_proto.input_size() == 2) || (layer_type == "Sum" && node_proto.input_size() > 2));
 
     if (layer_type == "Sum" && node_proto.input_size() > 2)
@@ -1381,16 +1451,17 @@ void ONNXImporter::parseImageScaler(LayerParams& layerParams, const opencv_onnx:
 
 void ONNXImporter::parseClip(LayerParams& layerParams, const opencv_onnx::NodeProto& node_proto)
 {
+    CV_CheckEQ(node_proto.input_size(), 1, "");
     layerParams.type = "ReLU6";
-    replaceLayerParam(layerParams, "min", "min_value");
-    replaceLayerParam(layerParams, "max", "max_value");
+    layerParams.set("min_value", layerParams.get<float>("min", -FLT_MAX));
+    layerParams.set("max_value", layerParams.get<float>("max", FLT_MAX));
     addLayer(layerParams, node_proto);
 }
 
 void ONNXImporter::parseLeakyRelu(LayerParams& layerParams, const opencv_onnx::NodeProto& node_proto)
 {
     layerParams.type = "ReLU";
-    replaceLayerParam(layerParams, "alpha", "negative_slope");
+    layerParams.set("negative_slope", layerParams.get<float>("alpha", 0.01));
     addLayer(layerParams, node_proto);
 }
 
@@ -1875,6 +1946,16 @@ void ONNXImporter::parseTranspose(LayerParams& layerParams, const opencv_onnx::N
     int depth = layerParams.get<int>("depth", CV_32F);
     layerParams.type = (depth == CV_8S) ? "PermuteInt8" : "Permute";
     replaceLayerParam(layerParams, "perm", "order");
+    if (!layerParams.has("order")) {
+        MatShape inpShape = outShapes[node_proto.input(0)];
+        size_t dims = inpShape.size();
+        std::vector<int> perm(dims);
+        for (size_t d = 0; d < dims; ++d)
+        {
+            perm[d] = static_cast<int>(dims - 1 - d);
+        }
+        layerParams.set("order", DictValue::arrayInt(perm.data(), perm.size()));
+    }
 
     CV_Assert(node_proto.input_size() == 1);
     if (constBlobs.find(node_proto.input(0)) != constBlobs.end())
@@ -1982,7 +2063,9 @@ void ONNXImporter::parseUnsqueeze(LayerParams& layerParams, const opencv_onnx::N
         }
         CV_Assert(axes.getIntValue(axes.size()-1) <= dims.size());
         for (int j = 0; j < axes.size(); j++) {
-            dims.insert(dims.begin() + axes.getIntValue(j), 1);
+            const int idx = axes.getIntValue(j);
+            CV_Assert(idx <= dims.size());
+            dims.insert(dims.begin() + idx, 1);
         }
 
         Mat out = input.reshape(0, dims);
@@ -2954,6 +3037,8 @@ const ONNXImporter::DispatchMap ONNXImporter::buildDispatchMap()
 {
     DispatchMap dispatch;
 
+    dispatch["ArgMax"] = dispatch["ArgMin"] = &ONNXImporter::parseArg;
+    dispatch["MaxUnpool"] = &ONNXImporter::parseMaxUnpool;
     dispatch["MaxPool"] = &ONNXImporter::parseMaxPool;
     dispatch["AveragePool"] = &ONNXImporter::parseAveragePool;
     dispatch["GlobalAveragePool"] = dispatch["GlobalMaxPool"] = dispatch["ReduceMean"] = dispatch["ReduceSum"] =
