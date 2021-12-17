@@ -1289,7 +1289,7 @@ void ORB_Impl::detectAndCompute( InputArray _image, InputArray _mask,
         metal_computeOrbDescriptors(imagePyramid, ulayerInfo,
                                            ukeypoints, udescriptors, upattern,
                                            nkeypoints, dsize, wta_k);
-
+        if (false)
 #endif
         {
             Mat descriptors = _descriptors.getMat();
