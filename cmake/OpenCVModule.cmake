@@ -883,6 +883,17 @@ macro(ocv_create_module)
     set(the_module_target ${the_module})
   endif()
 
+  if("${the_module}" STREQUAL "opencv_features2d" OR
+     "${the_module}" STREQUAL "opencv_perf_features2d" OR
+     "${the_module}" STREQUAL "opencv_test_features2d" )
+    message("module ${the_module}")
+    message("using imported metal lib!")
+    add_library(metal_opencv_orb_func_macOS STATIC IMPORTED)
+    set_target_properties(metal_opencv_orb_func_macOS PROPERTIES 
+      IMPORTED_LOCATION "/Users/eugene_k/Library/Developer/Xcode/DerivedData/orb-slam-dabpncyhukypvtcjyuxiiplfihrr/Build/Products/Debug/libmetal_opencv_orb_func_macOS.a")
+    target_link_libraries( ${the_module} PRIVATE metal_opencv_orb_func_macOS)
+  endif()
+
   if(WINRT AND BUILD_TESTS)
     # removing APPCONTAINER from modules to run from console
     # in case of usual starting of WinRT test apps output is missing

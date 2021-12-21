@@ -385,7 +385,6 @@ static bool metal_FAST( InputArray _img, std::vector<KeyPoint>& keypoints,
     Mat img = _img.getMat();
     if( img.cols < 7 || img.rows < 7 )
         return false;
-    size_t globalsize[] = { (size_t)img.cols-6, (size_t)img.rows-6 };
 
     Mat kp1(1, maxKeypoints*2+1, CV_32S, Scalar::all(0));
 
