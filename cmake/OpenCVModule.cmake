@@ -883,14 +883,14 @@ macro(ocv_create_module)
     set(the_module_target ${the_module})
   endif()
 
-  if("${the_module}" STREQUAL "opencv_features2d" OR
+  if(BUILD_TESTS AND ("${the_module}" STREQUAL "opencv_features2d" OR
      "${the_module}" STREQUAL "opencv_perf_features2d" OR
-     "${the_module}" STREQUAL "opencv_test_features2d" )
+     "${the_module}" STREQUAL "opencv_test_features2d" ))
     message("module ${the_module}")
     message("using imported metal lib!")
     add_library(metal_opencv_orb_func_macOS STATIC IMPORTED)
     set_target_properties(metal_opencv_orb_func_macOS PROPERTIES 
-      IMPORTED_LOCATION "/Users/eugene_k/Library/Developer/Xcode/DerivedData/orb-slam-dabpncyhukypvtcjyuxiiplfihrr/Build/Products/Debug/libmetal_opencv_orb_func_macOS.a")
+      IMPORTED_LOCATION "/Users/eugene_k/Documents/xrtool-slam-algorithm/build/Debug/libmetal_opencv_orb_func_macOS.a")
     target_link_libraries( ${the_module} PRIVATE metal_opencv_orb_func_macOS)
   endif()
 
