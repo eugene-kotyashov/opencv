@@ -993,7 +993,7 @@ static void computeKeyPoints(const Mat& imagePyramid,
 
     if( !useOCL )
 #endif
-#ifdef USE_METAL
+#ifdef _USE_METAL
     uploadORBKeypoints(allKeypoints, ukeypoints_buf, ukeypoints);
     metal_ICAngles(imagePyramid, ulayerInfo, ukeypoints, nkeypoints, uresponses, umax, halfPatchSize);
     uresponses.copyTo(responses);

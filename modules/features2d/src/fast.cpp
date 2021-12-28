@@ -564,8 +564,11 @@ void FAST(InputArray _img, std::vector<KeyPoint>& keypoints, int threshold, bool
                ocl_FAST(_img, keypoints, threshold, nonmax_suppression, 10000));
     
 #ifdef USE_METAL
-    metal_FAST(_img, keypoints, threshold, /*nonmax_suppression*/false, 10000);
-    return;
+    // metal_debug_image_kernel(_img);
+    if (type == FastFeatureDetector::TYPE_9_16) {
+        metal_FAST(_img, keypoints, threshold, nonmax_suppression, 10000);
+        return;
+    }
 #endif
 
     cv::Mat img = _img.getMat();
