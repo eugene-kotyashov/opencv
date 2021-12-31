@@ -993,7 +993,7 @@ static void computeKeyPoints(const Mat& imagePyramid,
 
     if( !useOCL )
 #endif
-#ifdef _USE_METAL
+#ifdef USE_METAL
     uploadORBKeypoints(allKeypoints, ukeypoints_buf, ukeypoints);
     metal_ICAngles(imagePyramid, ulayerInfo, ukeypoints, nkeypoints, uresponses, umax, halfPatchSize);
     uresponses.copyTo(responses);
@@ -1285,10 +1285,13 @@ void ORB_Impl::detectAndCompute( InputArray _image, InputArray _mask,
         copyVectorToUMat(pattern, upattern);
         uploadORBKeypoints(keypoints, layerScale, kptbuf, ukeypoints);
 
-        UMat udescriptors = _descriptors.getUMat();
+        Mat udescriptors = _descriptors.getMat();
         metal_computeOrbDescriptors(imagePyramid, ulayerInfo,
                                            ukeypoints, udescriptors, upattern,
                                            nkeypoints, dsize, wta_k);
+        // metal_computeOrbDescriptors_CPU(imagePyramid, ulayerInfo,
+        //                                     ukeypoints, udescriptors, upattern,
+        //                                     nkeypoints, dsize, wta_k);
         if (false)
 #endif
         {

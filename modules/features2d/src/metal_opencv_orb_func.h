@@ -49,6 +49,16 @@ void metal_ICAngles(
                     const std::vector<int> & u_max,
                     int half_k);
 
+void metal_computeOrbDescriptors_CPU(
+    cv::InputArray imgPyramid,
+    cv::InputArray layerInfo,
+    cv::InputArray keypoints,
+    cv::OutputArray desc,
+    cv::InputArray pattern,
+    int nkeypoints,
+    int dsize,
+    int wta_k);
+
 void metal_computeOrbDescriptors(
     cv::InputArray imgbuf,
     cv::InputArray layerInfo,
