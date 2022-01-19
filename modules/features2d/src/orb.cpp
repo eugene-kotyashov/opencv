@@ -1052,6 +1052,9 @@ void ORB_Impl::detectAndCompute( InputArray _image, InputArray _mask,
     Mat image = _image.getMat(), mask = _mask.getMat();
     if( image.type() != CV_8UC1 )
         cvtColor(_image, image, COLOR_BGR2GRAY);
+#ifdef USE_METAL
+    update_image_size(image.size().width, image.size().height);
+#endif
 
     int i, level, nLevels = this->nlevels, nkeypoints = (int)keypoints.size();
     bool sortedByLevel = true;

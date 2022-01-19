@@ -73,6 +73,6 @@ void metal_gaussianBlurForBRIEF(cv::InputOutputArray imgInOut );
                     
 void metal_debug_image_kernel(cv::InputArray imgIn);
 
-
+void update_image_size(short imageWdith, short imageHeight);
 
 #endif
