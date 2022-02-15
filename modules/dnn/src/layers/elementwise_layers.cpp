@@ -71,13 +71,27 @@ namespace dnn
 
 using std::abs;
 using std::exp;
+using std::expm1;
 using std::tanh;
 using std::pow;
 using std::ceil;
 using std::floor;
 using std::log;
+using std::log1p;
 using std::sqrt;
 using std::round;
+using std::acos;
+using std::acosh;
+using std::asin;
+using std::asinh;
+using std::atan;
+using std::atanh;
+using std::cos;
+using std::cosh;
+using std::erf;
+using std::sin;
+using std::sinh;
+using std::tan;
 
 template<typename Func>
 class ElementWiseLayer : public Func::Layer
@@ -172,14 +186,6 @@ public:
         return Ptr<BackendNode>();
     }
 
-#ifdef HAVE_DNN_IE_NN_BUILDER_2019
-    virtual Ptr<BackendNode> initInfEngine(const std::vector<Ptr<BackendWrapper> >&) CV_OVERRIDE
-    {
-        InferenceEngine::Builder::Layer ieLayer = func.initInfEngineBuilderAPI();
-        ieLayer.setName(this->name);
-        return Ptr<BackendNode>(new InfEngineBackendNode(ieLayer));
-    }
-#endif  // HAVE_DNN_IE_NN_BUILDER_2019
 
 #ifdef HAVE_DNN_NGRAPH
     virtual Ptr<BackendNode> initNgraph(const std::vector<Ptr<BackendWrapper> >& inputs, const std::vector<Ptr<BackendNode> >& nodes) CV_OVERRIDE
@@ -327,10 +333,6 @@ struct ReLUFunctor : public BaseFunctor
 
     bool supportBackend(int backendId, int)
     {
-#ifdef HAVE_DNN_IE_NN_BUILDER_2019
-        if (backendId == DNN_BACKEND_INFERENCE_ENGINE_NN_BUILDER_2019)
-            return slope >= 0 || !INF_ENGINE_VER_MAJOR_EQ(INF_ENGINE_RELEASE_2019R1);
-#endif
 #ifdef HAVE_DNN_NGRAPH
         if (backendId == DNN_BACKEND_INFERENCE_ENGINE_NGRAPH)
             return true;
@@ -448,13 +450,6 @@ struct ReLUFunctor : public BaseFunctor
     }
 #endif  // HAVE_HALIDE
 
-#ifdef HAVE_DNN_IE_NN_BUILDER_2019
-    InferenceEngine::Builder::Layer initInfEngineBuilderAPI()
-    {
-        return InferenceEngine::Builder::ReLULayer("").setNegativeSlope(slope);
-    }
-#endif  // HAVE_DNN_IE_NN_BUILDER_2019
-
 #ifdef HAVE_DNN_NGRAPH
     std::shared_ptr<ngraph::Node> initNgraphAPI(const std::shared_ptr<ngraph::Node>& node)
     {
@@ -520,11 +515,14 @@ struct ReLU6Functor : public BaseFunctor
 
     bool supportBackend(int backendId, int)
     {
+#ifdef HAVE_INF_ENGINE
+        if (backendId == DNN_BACKEND_INFERENCE_ENGINE_NGRAPH)
+            return true;
+#endif
         return backendId == DNN_BACKEND_OPENCV ||
                backendId == DNN_BACKEND_CUDA ||
                backendId == DNN_BACKEND_HALIDE ||
-               backendId == DNN_BACKEND_WEBNN ||
-               backendId == DNN_BACKEND_INFERENCE_ENGINE_NN_BUILDER_2019 || backendId == DNN_BACKEND_INFERENCE_ENGINE_NGRAPH;
+               backendId == DNN_BACKEND_WEBNN;
     }
 
     void apply(const float* srcptr, float* dstptr, int len, size_t planeSize, int cn0, int cn1) const
@@ -606,12 +604,6 @@ struct ReLU6Functor : public BaseFunctor
     }
 #endif  // HAVE_HALIDE
 
-#ifdef HAVE_DNN_IE_NN_BUILDER_2019
-    InferenceEngine::Builder::Layer initInfEngineBuilderAPI()
-    {
-        return InferenceEngine::Builder::ClampLayer("").setMinValue(minValue).setMaxValue(maxValue);
-    }
-#endif  // HAVE_DNN_IE_NN_BUILDER_2019
 
 #ifdef HAVE_DNN_NGRAPH
     std::shared_ptr<ngraph::Node> initNgraphAPI(const std::shared_ptr<ngraph::Node>& node)
@@ -715,12 +707,20 @@ struct BaseDefaultFunctor : public BaseFunctor
         return true;
     }
 
-#ifdef HAVE_DNN_IE_NN_BUILDER_2019
-    InferenceEngine::Builder::Layer initInfEngineBuilderAPI()
+#ifdef HAVE_CUDA
+    Ptr<BackendNode> initCUDA(int target, csl::Stream stream)
     {
         CV_Error(Error::StsNotImplemented, "");
     }
-#endif  // HAVE_DNN_IE_NN_BUILDER_2019
+#endif
+
+#ifdef HAVE_HALIDE
+    void attachHalide(const Halide::Expr& input, Halide::Func& top)
+    {
+        CV_Error(Error::StsNotImplemented, "");
+    }
+#endif  // HAVE_HALIDE
+
 
 #ifdef HAVE_DNN_NGRAPH
     std::shared_ptr<ngraph::Node> initNgraphAPI(const std::shared_ptr<ngraph::Node>& node)
@@ -733,8 +733,6 @@ struct BaseDefaultFunctor : public BaseFunctor
     ml::Operand initWebnnAPI(const ml::GraphBuilder& builder, const ml::Operand& input)
     {
         CV_Error(Error::StsNotImplemented, "");
-        ml::Operand operand;
-        return operand;
     }
 #endif
 
@@ -756,10 +754,13 @@ struct TanHFunctor : public BaseDefaultFunctor<TanHFunctor>
 
     bool supportBackend(int backendId, int)
     {
+#ifdef HAVE_INF_ENGINE
+        if (backendId == DNN_BACKEND_INFERENCE_ENGINE_NGRAPH)
+            return true;
+#endif
         return backendId == DNN_BACKEND_OPENCV ||
                backendId == DNN_BACKEND_CUDA ||
-               backendId == DNN_BACKEND_HALIDE ||
-               backendId == DNN_BACKEND_INFERENCE_ENGINE_NN_BUILDER_2019 || backendId == DNN_BACKEND_INFERENCE_ENGINE_NGRAPH;
+               backendId == DNN_BACKEND_HALIDE;
     }
 
     inline float calculate(float x) const
@@ -782,28 +783,12 @@ struct TanHFunctor : public BaseDefaultFunctor<TanHFunctor>
     }
 #endif  // HAVE_HALIDE
 
-#ifdef HAVE_DNN_IE_NN_BUILDER_2019
-    InferenceEngine::Builder::Layer initInfEngineBuilderAPI()
-    {
-        return InferenceEngine::Builder::TanHLayer("");
-    }
-#endif  // HAVE_DNN_IE_NN_BUILDER_2019
-
 #ifdef HAVE_DNN_NGRAPH
     std::shared_ptr<ngraph::Node> initNgraphAPI(const std::shared_ptr<ngraph::Node>& node)
     {
         return std::make_shared<ngraph::op::Tanh>(node);
     }
 #endif  // HAVE_DNN_NGRAPH
-
-#ifdef HAVE_WEBNN
-    ml::Operand initWebnnAPI(const ml::GraphBuilder& builder, const ml::Operand& input)
-    {
-        CV_Error(Error::StsNotImplemented, "");
-        ml::Operand operand;
-        return operand;
-    }
-#endif
 
     int64 getFLOPSPerElement() const { return 1; }
 };
@@ -908,15 +893,6 @@ struct MishFunctor : public BaseDefaultFunctor<MishFunctor>
     }
 #endif  // HAVE_DNN_NGRAPH
 
-#ifdef HAVE_WEBNN
-    ml::Operand initWebnnAPI(const ml::GraphBuilder& builder, const ml::Operand& input)
-    {
-        CV_Error(Error::StsNotImplemented, "");
-        ml::Operand operand;
-        return operand;
-    }
-#endif
-
     int64 getFLOPSPerElement() const { return 3; }
 };
 
@@ -929,10 +905,13 @@ struct SigmoidFunctor : public BaseDefaultFunctor<SigmoidFunctor>
 
     bool supportBackend(int backendId, int)
     {
+#ifdef HAVE_INF_ENGINE
+        if (backendId == DNN_BACKEND_INFERENCE_ENGINE_NGRAPH)
+            return true;
+#endif
         return backendId == DNN_BACKEND_OPENCV ||
                backendId == DNN_BACKEND_CUDA ||
-               backendId == DNN_BACKEND_HALIDE ||
-               backendId == DNN_BACKEND_INFERENCE_ENGINE_NN_BUILDER_2019 ||  backendId == DNN_BACKEND_INFERENCE_ENGINE_NGRAPH;
+               backendId == DNN_BACKEND_HALIDE;
     }
 
     inline float calculate(float x) const
@@ -955,12 +934,6 @@ struct SigmoidFunctor : public BaseDefaultFunctor<SigmoidFunctor>
     }
 #endif  // HAVE_HALIDE
 
-#ifdef HAVE_DNN_IE_NN_BUILDER_2019
-    InferenceEngine::Builder::Layer initInfEngineBuilderAPI()
-    {
-        return InferenceEngine::Builder::SigmoidLayer("");
-    }
-#endif  // HAVE_DNN_IE_NN_BUILDER_2019
 
 #ifdef HAVE_DNN_NGRAPH
     std::shared_ptr<ngraph::Node> initNgraphAPI(const std::shared_ptr<ngraph::Node>& node)
@@ -968,15 +941,6 @@ struct SigmoidFunctor : public BaseDefaultFunctor<SigmoidFunctor>
         return std::make_shared<ngraph::op::Sigmoid>(node);
     }
 #endif  // HAVE_DNN_NGRAPH
-
-#ifdef HAVE_WEBNN
-    ml::Operand initWebnnAPI(const ml::GraphBuilder& builder, const ml::Operand& input)
-    {
-        CV_Error(Error::StsNotImplemented, "");
-        ml::Operand operand;
-        return operand;
-    }
-#endif
 
     int64 getFLOPSPerElement() const { return 3; }
 };
@@ -993,10 +957,13 @@ struct ELUFunctor : public BaseDefaultFunctor<ELUFunctor>
 
     bool supportBackend(int backendId, int)
     {
+#ifdef HAVE_INF_ENGINE
+        if (backendId == DNN_BACKEND_INFERENCE_ENGINE_NGRAPH)
+            return true;
+#endif
         return backendId == DNN_BACKEND_OPENCV ||
                backendId == DNN_BACKEND_CUDA ||
-               backendId == DNN_BACKEND_HALIDE ||
-               backendId == DNN_BACKEND_INFERENCE_ENGINE_NN_BUILDER_2019 ||  backendId == DNN_BACKEND_INFERENCE_ENGINE_NGRAPH;
+               backendId == DNN_BACKEND_HALIDE;
     }
 
     inline float calculate(float x) const
@@ -1024,13 +991,6 @@ struct ELUFunctor : public BaseDefaultFunctor<ELUFunctor>
     }
 #endif  // HAVE_HALIDE
 
-#ifdef HAVE_DNN_IE_NN_BUILDER_2019
-    InferenceEngine::Builder::Layer initInfEngineBuilderAPI()
-    {
-        return InferenceEngine::Builder::ELULayer("");
-    }
-#endif  // HAVE_DNN_IE_NN_BUILDER_2019
-
 #ifdef HAVE_DNN_NGRAPH
     std::shared_ptr<ngraph::Node> initNgraphAPI(const std::shared_ptr<ngraph::Node>& node)
     {
@@ -1051,8 +1011,8 @@ struct AbsValFunctor : public BaseDefaultFunctor<AbsValFunctor>
     bool supportBackend(int backendId, int)
     {
 #ifdef HAVE_INF_ENGINE
-        if (backendId == DNN_BACKEND_INFERENCE_ENGINE_NN_BUILDER_2019 || backendId == DNN_BACKEND_INFERENCE_ENGINE_NGRAPH)
-            return !INF_ENGINE_VER_MAJOR_EQ(INF_ENGINE_RELEASE_2019R1);
+        if (backendId == DNN_BACKEND_INFERENCE_ENGINE_NGRAPH)
+            return true;
 #endif
         return backendId == DNN_BACKEND_OPENCV ||
                backendId == DNN_BACKEND_CUDA ||
@@ -1079,12 +1039,6 @@ struct AbsValFunctor : public BaseDefaultFunctor<AbsValFunctor>
     }
 #endif  // HAVE_HALIDE
 
-#ifdef HAVE_DNN_IE_NN_BUILDER_2019
-    InferenceEngine::Builder::Layer initInfEngineBuilderAPI()
-    {
-        return InferenceEngine::Builder::ReLULayer("").setNegativeSlope(-0.999999f);
-    }
-#endif  // HAVE_DNN_IE_NN_BUILDER_2019
 
 #ifdef HAVE_DNN_NGRAPH
     std::shared_ptr<ngraph::Node> initNgraphAPI(const std::shared_ptr<ngraph::Node>& node)
@@ -1095,15 +1049,6 @@ struct AbsValFunctor : public BaseDefaultFunctor<AbsValFunctor>
         return std::make_shared<ngraph::op::PRelu>(node, slope);
     }
 #endif  // HAVE_DNN_NGRAPH
-
-#ifdef HAVE_WEBNN
-    ml::Operand initWebnnAPI(const ml::GraphBuilder& builder, const ml::Operand& input)
-    {
-        CV_Error(Error::StsNotImplemented, "");
-        ml::Operand operand;
-        return operand;
-    }
-#endif
 
     int64 getFLOPSPerElement() const { return 1; }
 };
@@ -1234,15 +1179,6 @@ struct LogFunctor : public BaseDefaultFunctor<LogFunctor>
         return log(x);
     }
 
-#ifdef HAVE_WEBNN
-    ml::Operand initWebnnAPI(const ml::GraphBuilder& builder, const ml::Operand& input)
-    {
-        CV_Error(Error::StsNotImplemented, "");
-        ml::Operand operand;
-        return operand;
-    }
-#endif
-
 #ifdef HAVE_CUDA
     Ptr<BackendNode> initCUDA(int target, csl::Stream stream)
     {
@@ -1340,15 +1276,6 @@ struct SqrtFunctor : public BaseDefaultFunctor<SqrtFunctor>
     }
 #endif  // HAVE_DNN_NGRAPH
 
-#ifdef HAVE_WEBNN
-    ml::Operand initWebnnAPI(const ml::GraphBuilder& builder, const ml::Operand& input)
-    {
-        CV_Error(Error::StsNotImplemented, "");
-        ml::Operand operand;
-        return operand;
-    }
-#endif
-
     int64 getFLOPSPerElement() const { return 1; }
 };
 
@@ -1390,6 +1317,561 @@ struct NotFunctor : public BaseDefaultFunctor<NotFunctor>
 template<>
 const char* const BaseDefaultFunctor<NotFunctor>::ocl_kernel_name = "NotForward";
 
+struct AcosFunctor : public BaseDefaultFunctor<AcosFunctor>
+{
+    typedef AcosLayer Layer;
+
+    bool supportBackend(int backendId, int)
+    {
+        return backendId == DNN_BACKEND_OPENCV || backendId == DNN_BACKEND_CUDA;
+    }
+
+    inline float calculate(float x) const
+    {
+        return acos(x);
+    }
+
+#ifdef HAVE_CUDA
+    Ptr<BackendNode> initCUDA(int target, csl::Stream stream)
+    {
+        return make_cuda_node<cuda4dnn::AcosOp>(target, stream);
+    }
+#endif
+
+    int64 getFLOPSPerElement() const { return 1; }
+};
+
+template<>
+const char* const BaseDefaultFunctor<AcosFunctor>::ocl_kernel_name = "AcosForward";
+
+struct AcoshFunctor : public BaseDefaultFunctor<AcoshFunctor>
+{
+    typedef AcoshLayer Layer;
+
+    bool supportBackend(int backendId, int)
+    {
+        return backendId == DNN_BACKEND_OPENCV || backendId == DNN_BACKEND_CUDA;
+    }
+
+    inline float calculate(float x) const
+    {
+        return acosh(x);
+    }
+
+#ifdef HAVE_CUDA
+    Ptr<BackendNode> initCUDA(int target, csl::Stream stream)
+    {
+        return make_cuda_node<cuda4dnn::AcoshOp>(target, stream);
+    }
+#endif
+
+    int64 getFLOPSPerElement() const { return 1; }
+};
+
+template<>
+const char* const BaseDefaultFunctor<AcoshFunctor>::ocl_kernel_name = "AcoshForward";
+
+struct AsinFunctor : public BaseDefaultFunctor<AsinFunctor>
+{
+    typedef AsinLayer Layer;
+
+    bool supportBackend(int backendId, int)
+    {
+        return backendId == DNN_BACKEND_OPENCV || backendId == DNN_BACKEND_CUDA;
+    }
+
+    inline float calculate(float x) const
+    {
+        return asin(x);
+    }
+
+#ifdef HAVE_CUDA
+    Ptr<BackendNode> initCUDA(int target, csl::Stream stream)
+    {
+        return make_cuda_node<cuda4dnn::AsinOp>(target, stream);
+    }
+#endif
+
+    int64 getFLOPSPerElement() const { return 1; }
+};
+
+template<>
+const char* const BaseDefaultFunctor<AsinFunctor>::ocl_kernel_name = "AsinForward";
+
+struct AsinhFunctor : public BaseDefaultFunctor<AsinhFunctor>
+{
+    typedef AsinhLayer Layer;
+
+    bool supportBackend(int backendId, int)
+    {
+        return backendId == DNN_BACKEND_OPENCV || backendId == DNN_BACKEND_CUDA;
+    }
+
+    inline float calculate(float x) const
+    {
+        return asinh(x);
+    }
+
+#ifdef HAVE_CUDA
+    Ptr<BackendNode> initCUDA(int target, csl::Stream stream)
+    {
+        return make_cuda_node<cuda4dnn::AsinhOp>(target, stream);
+    }
+#endif
+
+    int64 getFLOPSPerElement() const { return 1; }
+};
+
+template<>
+const char* const BaseDefaultFunctor<AsinhFunctor>::ocl_kernel_name = "AsinhForward";
+
+struct AtanFunctor : public BaseDefaultFunctor<AtanFunctor>
+{
+    typedef AtanLayer Layer;
+
+    bool supportBackend(int backendId, int)
+    {
+        return backendId == DNN_BACKEND_OPENCV || backendId == DNN_BACKEND_CUDA;
+    }
+
+    inline float calculate(float x) const
+    {
+        return atan(x);
+    }
+
+#ifdef HAVE_CUDA
+    Ptr<BackendNode> initCUDA(int target, csl::Stream stream)
+    {
+        return make_cuda_node<cuda4dnn::AtanOp>(target, stream);
+    }
+#endif
+
+    int64 getFLOPSPerElement() const { return 1; }
+};
+
+template<>
+const char* const BaseDefaultFunctor<AtanFunctor>::ocl_kernel_name = "AtanForward";
+
+struct AtanhFunctor : public BaseDefaultFunctor<AtanhFunctor>
+{
+    typedef AtanhLayer Layer;
+
+    bool supportBackend(int backendId, int)
+    {
+        return backendId == DNN_BACKEND_OPENCV || backendId == DNN_BACKEND_CUDA;
+    }
+
+    inline float calculate(float x) const
+    {
+        return atanh(x);
+    }
+
+#ifdef HAVE_CUDA
+    Ptr<BackendNode> initCUDA(int target, csl::Stream stream)
+    {
+        return make_cuda_node<cuda4dnn::AtanhOp>(target, stream);
+    }
+#endif
+
+    int64 getFLOPSPerElement() const { return 1; }
+};
+
+template<>
+const char* const BaseDefaultFunctor<AtanhFunctor>::ocl_kernel_name = "AtanhForward";
+
+struct CosFunctor : public BaseDefaultFunctor<CosFunctor>
+{
+    typedef CosLayer Layer;
+
+    bool supportBackend(int backendId, int)
+    {
+        return backendId == DNN_BACKEND_OPENCV || backendId == DNN_BACKEND_CUDA;
+    }
+
+    inline float calculate(float x) const
+    {
+        return cos(x);
+    }
+
+#ifdef HAVE_CUDA
+    Ptr<BackendNode> initCUDA(int target, csl::Stream stream)
+    {
+        return make_cuda_node<cuda4dnn::CosOp>(target, stream);
+    }
+#endif
+
+    int64 getFLOPSPerElement() const { return 1; }
+};
+
+template<>
+const char* const BaseDefaultFunctor<CosFunctor>::ocl_kernel_name = "CosForward";
+
+struct CoshFunctor : public BaseDefaultFunctor<CoshFunctor>
+{
+    typedef CoshLayer Layer;
+
+    bool supportBackend(int backendId, int)
+    {
+        return backendId == DNN_BACKEND_OPENCV || backendId == DNN_BACKEND_CUDA;
+    }
+
+    inline float calculate(float x) const
+    {
+        return cosh(x);
+    }
+
+#ifdef HAVE_CUDA
+    Ptr<BackendNode> initCUDA(int target, csl::Stream stream)
+    {
+        return make_cuda_node<cuda4dnn::CoshOp>(target, stream);
+    }
+#endif
+
+    int64 getFLOPSPerElement() const { return 1; }
+};
+
+template<>
+const char* const BaseDefaultFunctor<CoshFunctor>::ocl_kernel_name = "CoshForward";
+
+struct ErfFunctor : public BaseDefaultFunctor<ErfFunctor>
+{
+    typedef ErfLayer Layer;
+
+    bool supportBackend(int backendId, int)
+    {
+        return backendId == DNN_BACKEND_OPENCV || backendId == DNN_BACKEND_CUDA;
+    }
+
+    inline float calculate(float x) const
+    {
+        return erf(x);
+    }
+
+#ifdef HAVE_CUDA
+    Ptr<BackendNode> initCUDA(int target, csl::Stream stream)
+    {
+        return make_cuda_node<cuda4dnn::ErfOp>(target, stream);
+    }
+#endif
+
+    int64 getFLOPSPerElement() const { return 1; }
+};
+
+template<>
+const char* const BaseDefaultFunctor<ErfFunctor>::ocl_kernel_name = "ErfForward";
+
+struct HardSwishFunctor : public BaseDefaultFunctor<HardSwishFunctor>
+{
+    typedef HardSwishLayer Layer;
+
+    bool supportBackend(int backendId, int)
+    {
+        return backendId == DNN_BACKEND_OPENCV || backendId == DNN_BACKEND_CUDA;
+    }
+
+    inline float calculate(float x) const
+    {
+        return x * max(0.f, min(1.f, x / 6.f + 0.5f));
+    }
+
+#ifdef HAVE_CUDA
+    Ptr<BackendNode> initCUDA(int target, csl::Stream stream)
+    {
+        return make_cuda_node<cuda4dnn::HardSwishOp>(target, stream);
+    }
+#endif
+
+    int64 getFLOPSPerElement() const { return 1; }
+};
+
+template<>
+const char* const BaseDefaultFunctor<HardSwishFunctor>::ocl_kernel_name = "HardSwishForward";
+
+struct SinFunctor : public BaseDefaultFunctor<SinFunctor>
+{
+    typedef SinLayer Layer;
+
+    bool supportBackend(int backendId, int)
+    {
+        return backendId == DNN_BACKEND_OPENCV || backendId == DNN_BACKEND_CUDA;
+    }
+
+    inline float calculate(float x) const
+    {
+        return sin(x);
+    }
+
+#ifdef HAVE_CUDA
+        Ptr<BackendNode> initCUDA(int target, csl::Stream stream)
+        {
+            return make_cuda_node<cuda4dnn::SinOp>(target, stream);
+        }
+#endif
+
+    int64 getFLOPSPerElement() const { return 1; }
+};
+
+template<>
+const char* const BaseDefaultFunctor<SinFunctor>::ocl_kernel_name = "SinForward";
+
+struct SinhFunctor : public BaseDefaultFunctor<SinhFunctor>
+{
+    typedef SinhLayer Layer;
+
+    bool supportBackend(int backendId, int)
+    {
+        return backendId == DNN_BACKEND_OPENCV || backendId == DNN_BACKEND_CUDA;
+    }
+
+    inline float calculate(float x) const
+    {
+        return sinh(x);
+    }
+
+#ifdef HAVE_CUDA
+    Ptr<BackendNode> initCUDA(int target, csl::Stream stream)
+    {
+        return make_cuda_node<cuda4dnn::SinhOp>(target, stream);
+    }
+#endif
+
+    int64 getFLOPSPerElement() const { return 1; }
+};
+
+template<>
+const char* const BaseDefaultFunctor<SinhFunctor>::ocl_kernel_name = "SinhForward";
+
+struct SoftplusFunctor : public BaseDefaultFunctor<SoftplusFunctor>
+{
+    typedef SoftplusLayer Layer;
+
+    bool supportBackend(int backendId, int)
+    {
+        return backendId == DNN_BACKEND_OPENCV || backendId == DNN_BACKEND_CUDA;
+    }
+
+    inline float calculate(float x) const
+    {
+        return log1p(exp(x));
+    }
+
+#ifdef HAVE_CUDA
+    Ptr<BackendNode> initCUDA(int target, csl::Stream stream)
+    {
+        return make_cuda_node<cuda4dnn::SoftplusOp>(target, stream);
+    }
+#endif
+
+    int64 getFLOPSPerElement() const { return 1; }
+};
+
+template<>
+const char* const BaseDefaultFunctor<SoftplusFunctor>::ocl_kernel_name = "SoftplusForward";
+
+struct SoftsignFunctor : public BaseDefaultFunctor<SoftsignFunctor>
+{
+    typedef SoftsignLayer Layer;
+
+    bool supportBackend(int backendId, int)
+    {
+        return backendId == DNN_BACKEND_OPENCV || backendId == DNN_BACKEND_CUDA;
+    }
+
+    inline float calculate(float x) const
+    {
+        return x / (1.f + abs(x));
+    }
+
+#ifdef HAVE_CUDA
+    Ptr<BackendNode> initCUDA(int target, csl::Stream stream)
+    {
+        return make_cuda_node<cuda4dnn::SoftsignOp>(target, stream);
+    }
+#endif
+
+    int64 getFLOPSPerElement() const { return 1; }
+};
+
+template<>
+const char* const BaseDefaultFunctor<SoftsignFunctor>::ocl_kernel_name = "SoftsignForward";
+
+struct TanFunctor : public BaseDefaultFunctor<TanFunctor>
+{
+    typedef TanLayer Layer;
+
+    bool supportBackend(int backendId, int)
+    {
+        return backendId == DNN_BACKEND_OPENCV || backendId == DNN_BACKEND_CUDA;
+    }
+
+    inline float calculate(float x) const
+    {
+        return tan(x);
+    }
+
+#ifdef HAVE_CUDA
+    Ptr<BackendNode> initCUDA(int target, csl::Stream stream)
+    {
+        return make_cuda_node<cuda4dnn::TanOp>(target, stream);
+    }
+#endif
+
+    int64 getFLOPSPerElement() const { return 1; }
+};
+
+template<>
+const char* const BaseDefaultFunctor<TanFunctor>::ocl_kernel_name = "TanForward";
+
+struct CeluFunctor : public BaseDefaultFunctor<CeluFunctor>
+{
+    typedef CeluLayer Layer;
+
+    float alpha;
+
+    explicit CeluFunctor(float alpha_ = 1.f) : alpha(alpha_) {}
+
+    bool supportBackend(int backendId, int)
+    {
+        return backendId == DNN_BACKEND_OPENCV || backendId == DNN_BACKEND_CUDA;
+    }
+
+    inline float calculate(float x) const
+    {
+        return max(0.f, x) + min(0.f, alpha * expm1(x / alpha));
+    }
+
+    inline void setKernelParams(ocl::Kernel& kernel) const
+    {
+        kernel.set(3, alpha);
+    }
+
+#ifdef HAVE_CUDA
+    Ptr<BackendNode> initCUDA(int target, csl::Stream stream)
+    {
+        return make_cuda_node<cuda4dnn::CeluOp>(target, stream, alpha);
+    }
+#endif
+
+    int64 getFLOPSPerElement() const { return 1; }
+};
+
+template<>
+const char* const BaseDefaultFunctor<CeluFunctor>::ocl_kernel_name = "CeluForward";
+
+struct HardSigmoidFunctor : public BaseDefaultFunctor<HardSigmoidFunctor>
+{
+    typedef HardSigmoidLayer Layer;
+
+    float alpha;
+    float beta;
+
+    explicit HardSigmoidFunctor(float alpha_ = 0.2f, float beta_ = 0.5f) : alpha(alpha_), beta(beta_) {}
+
+    bool supportBackend(int backendId, int)
+    {
+        return backendId == DNN_BACKEND_OPENCV || backendId == DNN_BACKEND_CUDA;
+    }
+
+    inline float calculate(float x) const
+    {
+        return max(0.f, min(1.f, alpha * x + beta));
+    }
+
+    inline void setKernelParams(ocl::Kernel& kernel) const
+    {
+        kernel.set(3, alpha);
+        kernel.set(4, beta);
+    }
+
+#ifdef HAVE_CUDA
+    Ptr<BackendNode> initCUDA(int target, csl::Stream stream)
+    {
+        return make_cuda_node<cuda4dnn::HardSigmoidOp>(target, stream, alpha, beta);
+    }
+#endif
+
+    int64 getFLOPSPerElement() const { return 1; }
+};
+
+template<>
+const char* const BaseDefaultFunctor<HardSigmoidFunctor>::ocl_kernel_name = "HardSigmoidForward";
+
+struct SeluFunctor : public BaseDefaultFunctor<SeluFunctor>
+{
+    typedef SeluLayer Layer;
+
+    float alpha;
+    float gamma;
+
+    explicit SeluFunctor(float alpha_ = 1.67326319217681884765625f,
+                         float gamma_ = 1.05070102214813232421875f) : alpha(alpha_), gamma(gamma_) {}
+
+    bool supportBackend(int backendId, int)
+    {
+        return backendId == DNN_BACKEND_OPENCV || backendId == DNN_BACKEND_CUDA;
+    }
+
+    inline float calculate(float x) const
+    {
+        return gamma * (x > 0.f ? x : alpha * expm1(x));
+    }
+
+    inline void setKernelParams(ocl::Kernel& kernel) const
+    {
+        kernel.set(3, alpha);
+        kernel.set(4, gamma);
+    }
+
+#ifdef HAVE_CUDA
+    Ptr<BackendNode> initCUDA(int target, csl::Stream stream)
+    {
+        return make_cuda_node<cuda4dnn::SeluOp>(target, stream, alpha, gamma);
+    }
+#endif
+
+    int64 getFLOPSPerElement() const { return 1; }
+};
+
+template<>
+const char* const BaseDefaultFunctor<SeluFunctor>::ocl_kernel_name = "SeluForward";
+
+struct ThresholdedReluFunctor : public BaseDefaultFunctor<ThresholdedReluFunctor>
+{
+    typedef ThresholdedReluLayer Layer;
+
+    float alpha;
+
+    explicit ThresholdedReluFunctor(float alpha_ = 1.f) : alpha(alpha_) {}
+
+
+    bool supportBackend(int backendId, int)
+    {
+        return backendId == DNN_BACKEND_OPENCV || backendId == DNN_BACKEND_CUDA;
+    }
+
+    inline float calculate(float x) const
+    {
+        return x > alpha ? x : 0.f;
+    }
+
+    inline void setKernelParams(ocl::Kernel& kernel) const
+    {
+        kernel.set(3, alpha);
+    }
+
+#ifdef HAVE_CUDA
+    Ptr<BackendNode> initCUDA(int target, csl::Stream stream)
+    {
+        return make_cuda_node<cuda4dnn::ThresholdedReluOp>(target, stream, alpha);
+    }
+#endif
+
+    int64 getFLOPSPerElement() const { return 1; }
+};
+
+template<>
+const char* const BaseDefaultFunctor<ThresholdedReluFunctor>::ocl_kernel_name = "ThresholdedReluForward";
+
 struct PowerFunctor : public BaseFunctor
 {
     typedef PowerLayer Layer;
@@ -1403,14 +1885,15 @@ struct PowerFunctor : public BaseFunctor
 
     bool supportBackend(int backendId, int targetId)
     {
-        if (backendId == DNN_BACKEND_INFERENCE_ENGINE_NN_BUILDER_2019)
-            return (targetId != DNN_TARGET_OPENCL && targetId != DNN_TARGET_OPENCL_FP16) || power == 1.0 || power == 0.5;
+#ifdef HAVE_INF_ENGINE
         if (backendId == DNN_BACKEND_INFERENCE_ENGINE_NGRAPH)
             return true;
-        else
+#endif
+        {
             return backendId == DNN_BACKEND_OPENCV ||
                    backendId == DNN_BACKEND_CUDA ||
                    backendId == DNN_BACKEND_HALIDE;
+        }
     }
 
     void finalize()
@@ -1502,14 +1985,6 @@ struct PowerFunctor : public BaseFunctor
     }
 #endif  // HAVE_HALIDE
 
-#ifdef HAVE_DNN_IE_NN_BUILDER_2019
-    InferenceEngine::Builder::Layer initInfEngineBuilderAPI()
-    {
-        return InferenceEngine::Builder::PowerLayer("").setPower(power)
-                                                       .setScale(scale)
-                                                       .setShift(shift);
-    }
-#endif  // HAVE_DNN_IE_NN_BUILDER_2019
 
 #ifdef HAVE_DNN_NGRAPH
     std::shared_ptr<ngraph::Node> initNgraphAPI(const std::shared_ptr<ngraph::Node>& node)
@@ -1642,15 +2117,6 @@ struct ExpFunctor : public BaseDefaultFunctor<ExpFunctor>
     }
 #endif  // HAVE_DNN_NGRAPH
 
-#ifdef HAVE_WEBNN
-    ml::Operand initWebnnAPI(const ml::GraphBuilder& builder, const ml::Operand& input)
-    {
-        CV_Error(Error::StsNotImplemented, "");
-        ml::Operand operand;
-        return operand;
-    }
-#endif
-
     int64 getFLOPSPerElement() const { return 3; }
 };
 
@@ -1671,10 +2137,13 @@ struct ChannelsPReLUFunctor : public BaseFunctor
 
     bool supportBackend(int backendId, int)
     {
+#ifdef HAVE_INF_ENGINE
+        if (backendId == DNN_BACKEND_INFERENCE_ENGINE_NGRAPH)
+            return true;
+#endif
         return backendId == DNN_BACKEND_OPENCV ||
                backendId == DNN_BACKEND_CUDA ||
-               backendId == DNN_BACKEND_HALIDE ||
-               backendId == DNN_BACKEND_INFERENCE_ENGINE_NN_BUILDER_2019 || backendId == DNN_BACKEND_INFERENCE_ENGINE_NGRAPH;
+               backendId == DNN_BACKEND_HALIDE;
     }
 
     void apply(const float* srcptr, float* dstptr, int len, size_t planeSize, int cn0, int cn1) const
@@ -1764,15 +2233,6 @@ struct ChannelsPReLUFunctor : public BaseFunctor
     }
 #endif  // HAVE_HALIDE
 
-#ifdef HAVE_DNN_IE_NN_BUILDER_2019
-    InferenceEngine::Builder::Layer initInfEngineBuilderAPI()
-    {
-        InferenceEngine::Builder::Layer l = InferenceEngine::Builder::PReLULayer("");
-        const size_t numChannels = scale.total();
-        addConstantData("weights", wrapToInfEngineBlob(scale, {numChannels}, InferenceEngine::Layout::C), l);
-        return l;
-    }
-#endif  // HAVE_DNN_IE_NN_BUILDER_2019
 
 #ifdef HAVE_DNN_NGRAPH
     std::shared_ptr<ngraph::Node> initNgraphAPI(const std::shared_ptr<ngraph::Node>& node)
@@ -1933,6 +2393,170 @@ Ptr<NotLayer> NotLayer::create(const LayerParams& params)
 {
     Ptr<NotLayer> l(new ElementWiseLayer<NotFunctor>());
     l->setParamsFrom(params);
+
+    return l;
+}
+
+Ptr<AcosLayer> AcosLayer::create(const LayerParams& params)
+{
+    Ptr<AcosLayer> l(new ElementWiseLayer<AcosFunctor>());
+    l->setParamsFrom(params);
+
+    return l;
+}
+
+Ptr<AcoshLayer> AcoshLayer::create(const LayerParams& params)
+{
+    Ptr<AcoshLayer> l(new ElementWiseLayer<AcoshFunctor>());
+    l->setParamsFrom(params);
+
+    return l;
+}
+
+Ptr<AsinLayer> AsinLayer::create(const LayerParams& params)
+{
+    Ptr<AsinLayer> l(new ElementWiseLayer<AsinFunctor>());
+    l->setParamsFrom(params);
+
+    return l;
+}
+
+Ptr<AsinhLayer> AsinhLayer::create(const LayerParams& params)
+{
+    Ptr<AsinhLayer> l(new ElementWiseLayer<AsinhFunctor>());
+    l->setParamsFrom(params);
+
+    return l;
+}
+
+Ptr<AtanLayer> AtanLayer::create(const LayerParams& params)
+{
+    Ptr<AtanLayer> l(new ElementWiseLayer<AtanFunctor>());
+    l->setParamsFrom(params);
+
+    return l;
+}
+
+Ptr<AtanhLayer> AtanhLayer::create(const LayerParams& params)
+{
+    Ptr<AtanhLayer> l(new ElementWiseLayer<AtanhFunctor>());
+    l->setParamsFrom(params);
+
+    return l;
+}
+
+Ptr<CosLayer> CosLayer::create(const LayerParams& params)
+{
+    Ptr<CosLayer> l(new ElementWiseLayer<CosFunctor>());
+    l->setParamsFrom(params);
+
+    return l;
+}
+
+Ptr<CoshLayer> CoshLayer::create(const LayerParams& params)
+{
+    Ptr<CoshLayer> l(new ElementWiseLayer<CoshFunctor>());
+    l->setParamsFrom(params);
+
+    return l;
+}
+
+Ptr<ErfLayer> ErfLayer::create(const LayerParams& params)
+{
+    Ptr<ErfLayer> l(new ElementWiseLayer<ErfFunctor>());
+    l->setParamsFrom(params);
+
+    return l;
+}
+
+Ptr<HardSwishLayer> HardSwishLayer::create(const LayerParams& params)
+{
+    Ptr<HardSwishLayer> l(new ElementWiseLayer<HardSwishFunctor>());
+    l->setParamsFrom(params);
+
+    return l;
+}
+
+Ptr<SinLayer> SinLayer::create(const LayerParams& params)
+{
+    Ptr<SinLayer> l(new ElementWiseLayer<SinFunctor>());
+    l->setParamsFrom(params);
+
+    return l;
+}
+
+Ptr<SinhLayer> SinhLayer::create(const LayerParams& params)
+{
+    Ptr<SinhLayer> l(new ElementWiseLayer<SinhFunctor>());
+    l->setParamsFrom(params);
+
+    return l;
+}
+
+Ptr<SoftplusLayer> SoftplusLayer::create(const LayerParams& params)
+{
+    Ptr<SoftplusLayer> l(new ElementWiseLayer<SoftplusFunctor>());
+    l->setParamsFrom(params);
+
+    return l;
+}
+
+Ptr<SoftsignLayer> SoftsignLayer::create(const LayerParams& params)
+{
+    Ptr<SoftsignLayer> l(new ElementWiseLayer<SoftsignFunctor>());
+    l->setParamsFrom(params);
+
+    return l;
+}
+
+Ptr<TanLayer> TanLayer::create(const LayerParams& params)
+{
+    Ptr<TanLayer> l(new ElementWiseLayer<TanFunctor>());
+    l->setParamsFrom(params);
+
+    return l;
+}
+
+Ptr<CeluLayer> CeluLayer::create(const LayerParams& params)
+{
+    float alpha = params.get<float>("alpha", 1.f);
+    Ptr<CeluLayer> l(new ElementWiseLayer<CeluFunctor>(CeluFunctor(alpha)));
+    l->setParamsFrom(params);
+    l->alpha = alpha;
+
+    return l;
+}
+
+Ptr<HardSigmoidLayer> HardSigmoidLayer::create(const LayerParams& params)
+{
+    float alpha = params.get<float>("alpha", 0.2f);
+    float beta = params.get<float>("beta", 0.5f);
+    Ptr<HardSigmoidLayer> l(new ElementWiseLayer<HardSigmoidFunctor>(HardSigmoidFunctor(alpha, beta)));
+    l->setParamsFrom(params);
+    l->alpha = alpha;
+    l->beta = beta;
+
+    return l;
+}
+
+Ptr<SeluLayer> SeluLayer::create(const LayerParams& params)
+{
+    float alpha = params.get<float>("alpha", 1.67326319217681884765625f);
+    float gamma = params.get<float>("gamma", 1.05070102214813232421875f);
+    Ptr<SeluLayer> l(new ElementWiseLayer<SeluFunctor>(SeluFunctor(alpha, gamma)));
+    l->setParamsFrom(params);
+    l->alpha = alpha;
+    l->gamma = gamma;
+
+    return l;
+}
+
+Ptr<ThresholdedReluLayer> ThresholdedReluLayer::create(const LayerParams& params)
+{
+    float alpha = params.get<float>("alpha", 1.f);
+    Ptr<ThresholdedReluLayer> l(new ElementWiseLayer<ThresholdedReluFunctor>(ThresholdedReluFunctor(alpha)));
+    l->setParamsFrom(params);
+    l->alpha = alpha;
 
     return l;
 }
