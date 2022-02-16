@@ -414,12 +414,23 @@ static bool metal_FAST( InputArray _img, std::vector<KeyPoint>& keypoints,
 
     else
     {
-        Mat m;
-        kp1(Rect(0, 0, counter * 2 + 1, 1)).copyTo(m);
-        const Point *pt = (const Point *)(m.ptr<int>() + 1);
-        for (i = 0; i < counter; i++)
-            keypoints.push_back(KeyPoint((float)pt[i].x, (float)pt[i].y, 7.f, -1, 1.f));
+        
+        Mat kp2(1, maxKeypoints*3+1, CV_32S);
+        Mat ucounter2 = kp2(Rect(0,0,1,1));
+        ucounter2.setTo(Scalar::all(0));
+        
+        metal_fastNMSKernel(img, kp1, kp2, counter, maxKeypoints);
+        
+        Mat m2;
+        kp2(Rect(0, 0, counter*3+1, 1)).copyTo(m2);
+        Point3i* pt2 = (Point3i*)(m2.ptr<int>() + 1);
+        int newcounter = std::min(m2.at<int>(0), counter);
+        
+        std::sort(pt2, pt2 + newcounter, cmp_pt<Point3i>());
 
+        for( i = 0; i < newcounter; i++ )
+            keypoints.push_back(KeyPoint((float)pt2[i].x, (float)pt2[i].y, 7.f, -1, (float)pt2[i].z));
+        
         // Sorting keypoints by deacreasing order of strength
         vector<float> responseVector;
         for (unsigned int i = 0; i < keypoints.size(); i++)
@@ -437,9 +448,10 @@ static bool metal_FAST( InputArray _img, std::vector<KeyPoint>& keypoints,
             keyPointsSorted.push_back(keypoints[Indx[i]]);
 
         float tolerance = 0.1;
-        size_t numRetPoints = 750;
+        size_t numRetPoints = (size_t)(0.3*keyPointsSorted.size());
         keypoints =
             sdc(keyPointsSorted, numRetPoints, tolerance, img.cols, img.rows);
+
     }
 
     return true;
