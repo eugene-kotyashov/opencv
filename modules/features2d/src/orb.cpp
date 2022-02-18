@@ -38,6 +38,9 @@
 #include "opencl_kernels_features2d.hpp"
 #include "metal_opencv_orb_func.h"
 #include <iterator>
+#include <numeric>
+#include  <algorithm>
+#include "anms.h"
 
 #ifndef CV_IMPL_ADD
 #define CV_IMPL_ADD(x)
@@ -962,8 +965,28 @@ static void computeKeyPoints(const Mat& imagePyramid,
             offset += nkeypoints;
 
             //cull to the final desired level, using the new Harris scores.
+#ifndef USE_METAL
             KeyPointsFilter::retainBest(keypoints, featuresNum);
+#else
+            Mat img = imagePyramid(layerInfo[level]);
 
+            // cull to desired number of points using ASNM algorithm
+            std::vector<int> Indx(keypoints.size());
+            std::iota(std::begin(Indx), std::end(Indx), 0);
+   
+            std::stable_sort(
+                Indx.begin(),
+                Indx.end(),
+                [&keypoints](size_t i1, size_t i2) {return keypoints[i1].response > keypoints[i2].response;});
+            vector<cv::KeyPoint> keyPointsSorted;
+            for (unsigned int i = 0; i < keypoints.size(); i++)
+                keyPointsSorted.push_back(keypoints[Indx[i]]);
+
+            float tolerance = 0.5;
+            size_t numRetPoints = featuresNum;
+            keypoints =
+                sdc(keyPointsSorted, numRetPoints, tolerance, img.cols, img.rows);
+#endif
             std::copy(keypoints.begin(), keypoints.end(), std::back_inserter(newAllKeypoints));
         }
         std::swap(allKeypoints, newAllKeypoints);
@@ -997,7 +1020,8 @@ static void computeKeyPoints(const Mat& imagePyramid,
     uploadORBKeypoints(allKeypoints, ukeypoints_buf, ukeypoints);
     metal_ICAngles(imagePyramid, ulayerInfo, ukeypoints, nkeypoints, uresponses, umax, halfPatchSize);
     uresponses.copyTo(responses);
-    for( i = 0; i < nkeypoints; i++ )
+
+    for (i = 0; i < nkeypoints; i++)
         allKeypoints[i].angle = responses.at<float>(i);
 
     if (false)

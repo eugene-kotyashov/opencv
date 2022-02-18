@@ -430,28 +430,6 @@ static bool metal_FAST( InputArray _img, std::vector<KeyPoint>& keypoints,
 
         for( i = 0; i < newcounter; i++ )
             keypoints.push_back(KeyPoint((float)pt2[i].x, (float)pt2[i].y, 7.f, -1, (float)pt2[i].z));
-        
-        // Sorting keypoints by deacreasing order of strength
-        vector<float> responseVector;
-        for (unsigned int i = 0; i < keypoints.size(); i++)
-            responseVector.push_back(keypoints[i].response);
-        vector<int> Indx(responseVector.size());
-        std::iota(std::begin(Indx), std::end(Indx), 0);
-
-#if CV_MAJOR_VERSION >= 4
-        cv::sortIdx(responseVector, Indx, cv::SORT_DESCENDING);
-#else
-        cv::sortIdx(responseVector, Indx, CV_SORT_DESCENDING);
-#endif
-        vector<cv::KeyPoint> keyPointsSorted;
-        for (unsigned int i = 0; i < keypoints.size(); i++)
-            keyPointsSorted.push_back(keypoints[Indx[i]]);
-
-        float tolerance = 0.1;
-        size_t numRetPoints = (size_t)(0.3*keyPointsSorted.size());
-        keypoints =
-            sdc(keyPointsSorted, numRetPoints, tolerance, img.cols, img.rows);
-
     }
 
     return true;
@@ -591,7 +569,7 @@ void FAST(InputArray _img, std::vector<KeyPoint>& keypoints, int threshold, bool
 #ifdef USE_METAL
     // metal_debug_image_kernel(_img);
     if (type == FastFeatureDetector::TYPE_9_16) {
-        metal_FAST(_img, keypoints, threshold, nonmax_suppression, 10000);
+        metal_FAST(_img, keypoints, threshold, nonmax_suppression, 200000);
         return;
     }
 #endif
