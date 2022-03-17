@@ -982,7 +982,7 @@ static void computeKeyPoints(const Mat& imagePyramid,
             for (unsigned int i = 0; i < keypoints.size(); i++)
                 keyPointsSorted.push_back(keypoints[Indx[i]]);
 
-            float tolerance = 0.5;
+            float tolerance = 0.2;
             size_t numRetPoints = featuresNum;
             keypoints =
                 sdc(keyPointsSorted, numRetPoints, tolerance, img.cols, img.rows);
