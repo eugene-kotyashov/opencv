@@ -569,7 +569,7 @@ void FAST(InputArray _img, std::vector<KeyPoint>& keypoints, int threshold, bool
 #ifdef USE_METAL
     // metal_debug_image_kernel(_img);
     if (type == FastFeatureDetector::TYPE_9_16) {
-        metal_FAST(_img, keypoints, threshold, nonmax_suppression, 10000);
+        metal_FAST(_img, keypoints, threshold, nonmax_suppression, 200000);
         return;
     }
 #endif

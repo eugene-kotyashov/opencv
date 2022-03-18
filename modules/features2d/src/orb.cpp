@@ -873,15 +873,39 @@ static void computeKeyPoints(const Mat& imagePyramid,
 
         // Detect FAST features, 20 is a good threshold
         {
-        Ptr<FastFeatureDetector> fd = FastFeatureDetector::create(fastThreshold, true);
+        Ptr<FastFeatureDetector> fd = FastFeatureDetector::create(fastThreshold, false);
         fd->detect(img, keypoints, mask);
         }
 
         // Remove keypoints very close to the border
         KeyPointsFilter::runByImageBorder(keypoints, img.size(), edgeThreshold);
 
+
+#ifndef USE_METAL
         // Keep more points than necessary as FAST does not give amazing corners
         KeyPointsFilter::retainBest(keypoints, scoreType == ORB_Impl::HARRIS_SCORE ? 2 * featuresNum : featuresNum);
+
+#else
+        // Mat img = imagePyramid(layerInfo[level]);
+
+        // cull to desired number of points using ASNM algorithm
+        std::vector<int> Indx(keypoints.size());
+        std::iota(std::begin(Indx), std::end(Indx), 0);
+
+        std::stable_sort(
+            Indx.begin(),
+            Indx.end(),
+            [&keypoints](size_t i1, size_t i2)
+            { return keypoints[i1].response > keypoints[i2].response; });
+        vector<cv::KeyPoint> keyPointsSorted;
+        for (unsigned int i = 0; i < keypoints.size(); i++)
+            keyPointsSorted.push_back(keypoints[Indx[i]]);
+
+        float tolerance = 0.2;
+        size_t numRetPoints = (scoreType == ORB_Impl::HARRIS_SCORE) ? 2 * featuresNum : featuresNum;
+        keypoints =
+            sdc(keyPointsSorted, numRetPoints, tolerance, img.cols, img.rows);
+#endif
 
         nkeypoints = (int)keypoints.size();
         counters[level] = nkeypoints;
@@ -965,28 +989,7 @@ static void computeKeyPoints(const Mat& imagePyramid,
             offset += nkeypoints;
 
             //cull to the final desired level, using the new Harris scores.
-#ifndef USE_METAL
             KeyPointsFilter::retainBest(keypoints, featuresNum);
-#else
-            Mat img = imagePyramid(layerInfo[level]);
-
-            // cull to desired number of points using ASNM algorithm
-            std::vector<int> Indx(keypoints.size());
-            std::iota(std::begin(Indx), std::end(Indx), 0);
-   
-            std::stable_sort(
-                Indx.begin(),
-                Indx.end(),
-                [&keypoints](size_t i1, size_t i2) {return keypoints[i1].response > keypoints[i2].response;});
-            vector<cv::KeyPoint> keyPointsSorted;
-            for (unsigned int i = 0; i < keypoints.size(); i++)
-                keyPointsSorted.push_back(keypoints[Indx[i]]);
-
-            float tolerance = 0.2;
-            size_t numRetPoints = featuresNum;
-            keypoints =
-                sdc(keyPointsSorted, numRetPoints, tolerance, img.cols, img.rows);
-#endif
             std::copy(keypoints.begin(), keypoints.end(), std::back_inserter(newAllKeypoints));
         }
         std::swap(allKeypoints, newAllKeypoints);
@@ -1018,7 +1021,7 @@ static void computeKeyPoints(const Mat& imagePyramid,
 #endif
 #ifdef USE_METAL
     uploadORBKeypoints(allKeypoints, ukeypoints_buf, ukeypoints);
-    metal_ICAngles(imagePyramid, ulayerInfo, ukeypoints, nkeypoints, uresponses, umax, halfPatchSize);
+    // metal_ICAngles(imagePyramid, ulayerInfo, ukeypoints, nkeypoints, uresponses, umax, halfPatchSize);
     uresponses.copyTo(responses);
 
     for (i = 0; i < nkeypoints; i++)
