@@ -872,8 +872,15 @@ static void computeKeyPoints(const Mat& imagePyramid,
         Mat mask = maskPyramid.empty() ? Mat() : maskPyramid(layerInfo[level]);
 
         // Detect FAST features, 20 is a good threshold
+#define USE_ANMS
         {
-        Ptr<FastFeatureDetector> fd = FastFeatureDetector::create(fastThreshold, false);
+        Ptr<FastFeatureDetector> fd = FastFeatureDetector::create(fastThreshold,
+#ifdef USE_ANMS
+            false
+#else 
+            true
+#endif
+        );
         fd->detect(img, keypoints, mask);
         }
 
@@ -881,7 +888,7 @@ static void computeKeyPoints(const Mat& imagePyramid,
         KeyPointsFilter::runByImageBorder(keypoints, img.size(), edgeThreshold);
 
 
-#ifndef USE_METAL
+#ifndef USE_ANMS
         // Keep more points than necessary as FAST does not give amazing corners
         KeyPointsFilter::retainBest(keypoints, scoreType == ORB_Impl::HARRIS_SCORE ? 2 * featuresNum : featuresNum);
 
@@ -952,17 +959,18 @@ static void computeKeyPoints(const Mat& imagePyramid,
 #endif
 #ifdef USE_METAL
         
-        Mat mkeypoints;
-        uploadORBKeypointsM(allKeypoints, ukeypoints_buf, mkeypoints);
-        Mat mresponses(1, nkeypoints, CV_32F);
+        // Mat mkeypoints;
+        // uploadORBKeypointsM(allKeypoints, ukeypoints_buf, mkeypoints);
+        uploadORBKeypoints(allKeypoints, ukeypoints_buf, ukeypoints);
         int blockSize = 7;
         float scale = 1.f/((1 << 2) * blockSize * 255.f);
         float scale_sq_sq = scale * scale * scale * scale;
+        Mat mresponses = uresponses.getMat(ACCESS_WRITE);
         metal_harris_responses(
                             imagePyramid,
                             ulayerInfo,
-                            mkeypoints,
-                            mresponses, 
+                            ukeypoints.getMat(ACCESS_READ),
+                            mresponses,
                             nkeypoints,
                             blockSize,
                             HARRIS_K,
@@ -1021,7 +1029,7 @@ static void computeKeyPoints(const Mat& imagePyramid,
 #endif
 #ifdef USE_METAL
     uploadORBKeypoints(allKeypoints, ukeypoints_buf, ukeypoints);
-    // metal_ICAngles(imagePyramid, ulayerInfo, ukeypoints, nkeypoints, uresponses, umax, halfPatchSize);
+    metal_ICAngles(imagePyramid, ulayerInfo, ukeypoints, nkeypoints, uresponses, umax, halfPatchSize);
     uresponses.copyTo(responses);
 
     for (i = 0; i < nkeypoints; i++)
