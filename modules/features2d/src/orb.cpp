@@ -912,6 +912,7 @@ static void computeKeyPoints(const Mat& imagePyramid,
         size_t numRetPoints = (scoreType == ORB_Impl::HARRIS_SCORE) ? 2 * featuresNum : featuresNum;
         keypoints =
             sdc(keyPointsSorted, numRetPoints, tolerance, img.cols, img.rows);
+            // brownANMS(keyPointsSorted, numRetPoints);
 #endif
 
         nkeypoints = (int)keypoints.size();

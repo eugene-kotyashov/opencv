@@ -60,6 +60,8 @@ vector<KeyPoint> brownANMS(vector<KeyPoint> keyPoints,
   }
   sort(results.begin(), results.end(), sort_pred()); // sorting by radius
   vector<KeyPoint> kp;
+  if (numRetPoints > keyPoints.size())
+    numRetPoints = keyPoints.size();
   for (int i = 0; i < numRetPoints; ++i)
     kp.push_back(
         keyPoints[results[i].second]); // extracting numRetPoints keyPoints
