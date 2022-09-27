@@ -872,7 +872,6 @@ static void computeKeyPoints(const Mat& imagePyramid,
         Mat mask = maskPyramid.empty() ? Mat() : maskPyramid(layerInfo[level]);
 
         // Detect FAST features, 20 is a good threshold
-#define USE_ANMS
         {
         Ptr<FastFeatureDetector> fd = FastFeatureDetector::create(fastThreshold,
 #ifdef USE_ANMS

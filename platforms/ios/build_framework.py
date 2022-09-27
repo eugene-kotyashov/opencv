@@ -47,7 +47,7 @@ from cv_build_utils import execute, print_error, get_xcode_major, get_xcode_sett
 IPHONEOS_DEPLOYMENT_TARGET='9.0'  # default, can be changed via command line options or environment variable
 
 class Builder:
-    def __init__(self, opencv, contrib, dynamic, bitcodedisabled, exclude, disable, enablenonfree, targets, debug, debug_info, framework_name, run_tests, build_docs, swiftdisabled, use_metal):
+    def __init__(self, opencv, contrib, dynamic, bitcodedisabled, exclude, disable, enablenonfree, targets, debug, debug_info, framework_name, run_tests, build_docs, swiftdisabled, use_metal, use_anms):
         self.opencv = os.path.abspath(opencv)
         self.contrib = None
         if contrib:
@@ -70,6 +70,7 @@ class Builder:
         self.build_docs = build_docs
         self.swiftdisabled = swiftdisabled
         self.use_metal = use_metal
+        self.use_anms = use_anms
 
     def checkCMakeVersion(self):
         if get_xcode_version() >= (12, 2):
@@ -112,6 +113,8 @@ class Builder:
             if self.contrib:
                 cmake_flags.append("-DOPENCV_EXTRA_MODULES_PATH=%s" % self.contrib)
             cxx_flags = []
+            if self.use_anms:
+                cxx_flags.append('-DUSE_ANMS')
             if self.use_metal:
                 cxx_flags.append('-DUSE_METAL')
             if xcode_ver >= 7 and target[1] == 'iPhoneOS' and self.bitcodedisabled == False:
@@ -542,6 +545,7 @@ if __name__ == "__main__":
     parser.add_argument('--build_docs', default=False, dest='build_docs', action='store_true', help='Build docs')
     parser.add_argument('--disable-swift', default=False, dest='swiftdisabled', action='store_true', help='Disable building of Swift extensions')
     parser.add_argument('--use-metal', default=False, dest='use_metal', action='store_true', help='Use Metal accelerated ORB feature detection')
+    parser.add_argument('--use-anms', default=False, dest='use_anms', action='store_true', help='Use Advansed Non Max Supression for FAST keypoints')
 
     args, unknown_args = parser.parse_known_args()
     if unknown_args:
@@ -595,6 +599,6 @@ if __name__ == "__main__":
         if iphonesimulator_archs:
             targets.append((iphonesimulator_archs, "iPhoneSimulator"))
 
-    b = iOSBuilder(args.opencv, args.contrib, args.dynamic, args.bitcodedisabled, args.without, args.disable, args.enablenonfree, targets, args.debug, args.debug_info, args.framework_name, args.run_tests, args.build_docs, args.swiftdisabled, args.use_metal)
+    b = iOSBuilder(args.opencv, args.contrib, args.dynamic, args.bitcodedisabled, args.without, args.disable, args.enablenonfree, targets, args.debug, args.debug_info, args.framework_name, args.run_tests, args.build_docs, args.swiftdisabled, args.use_metal, args.use_anms)
 
     b.build(args.out)
