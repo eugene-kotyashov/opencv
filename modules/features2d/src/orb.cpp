@@ -996,9 +996,36 @@ static void computeKeyPoints(const Mat& imagePyramid,
                       keypoints.begin());
             offset += nkeypoints;
 
+#ifdef USE_CENTER_DISTANCE
+            // get keypoints closest to the center of the image 
+            // cull to desired number of points using ASNM algorithm
+            std::vector<int> Indx(keypoints.size());
+            std::vector<float> distances(keypoints.size());
+            float imageCenterX = 0.5*layerInfo[0].width;
+            float imageCenterY = 0.5*layerInfo[0].height;
+            for (unsigned int i = 0; i < keypoints.size(); i++)
+                distances[i] = 
+                (imageCenterX - keypoints[i].pt.x)*(imageCenterX - keypoints[i].pt.x) + 
+                (imageCenterY - keypoints[i].pt.y)*(imageCenterY - keypoints[i].pt.y);
+
+            std::iota(std::begin(Indx), std::end(Indx), 0);
+
+            std::stable_sort(
+                Indx.begin(),
+                Indx.end(),
+                [&distances](size_t i1, size_t i2)
+                { return distances[i1] < distances[i2]; });
+            vector<cv::KeyPoint> keyPointsSorted;
+            int sortedKeypointCount = (nkeypoints > featuresNum) ? featuresNum : nkeypoints;
+            // return sortedKeypointCount keypoints closest to image center
+            for (unsigned int i = 0; i < sortedKeypointCount; i++)
+                keyPointsSorted.push_back(keypoints[Indx[i]]);
+            std::copy(keyPointsSorted.begin(), keyPointsSorted.end(), std::back_inserter(newAllKeypoints));
+#else
             //cull to the final desired level, using the new Harris scores.
             KeyPointsFilter::retainBest(keypoints, featuresNum);
             std::copy(keypoints.begin(), keypoints.end(), std::back_inserter(newAllKeypoints));
+#endif
         }
         std::swap(allKeypoints, newAllKeypoints);
     }
