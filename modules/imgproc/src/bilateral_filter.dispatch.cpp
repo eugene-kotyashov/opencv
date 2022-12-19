@@ -51,11 +51,77 @@
 #include "bilateral_filter.simd.hpp"
 #include "bilateral_filter.simd_declarations.hpp" // defines CV_CPU_DISPATCH_MODES_ALL=AVX2,...,BASELINE based on CMakeLists.txt content
 
+#include "bilateral_filter.metal.hpp"
 /****************************************************************************************\
                                    Bilateral Filtering
 \****************************************************************************************/
 
 namespace cv {
+
+#ifdef USE_METAL
+
+static bool metal_bilateralFilter_8u(InputArray _src, OutputArray _dst, int d,
+                               double sigma_color, double sigma_space,
+                               int borderType)
+{
+    int type = _src.type(), depth = CV_MAT_DEPTH(type), cn = CV_MAT_CN(type);
+    int i, j, maxk, radius;
+
+    if (depth != CV_8U || cn > 4)
+        return false;
+
+    if (sigma_color <= 0)
+        sigma_color = 1;
+    if (sigma_space <= 0)
+        sigma_space = 1;
+
+    double gauss_color_coeff = -0.5 / (sigma_color * sigma_color);
+    double gauss_space_coeff = -0.5 / (sigma_space * sigma_space);
+
+    if ( d <= 0 )
+        radius = cvRound(sigma_space * 1.5);
+    else
+        radius = d / 2;
+    radius = MAX(radius, 1);
+    d = radius * 2 + 1;
+
+    UMat src = _src.getUMat(), dst = _dst.getUMat(), temp;
+    if (src.u == dst.u)
+        return false;
+
+    copyMakeBorder(src, temp, radius, radius, radius, radius, borderType);
+    std::vector<float> _space_weight(d * d);
+    std::vector<int> _space_ofs(d * d);
+    float * const space_weight = &_space_weight[0];
+    int * const space_ofs = &_space_ofs[0];
+
+    // initialize space-related bilateral filter coefficients
+    for( i = -radius, maxk = 0; i <= radius; i++ )
+        for( j = -radius; j <= radius; j++ )
+        {
+            double r = std::sqrt((double)i * i + (double)j * j);
+            if ( r > radius )
+                continue;
+            space_weight[maxk] = (float)std::exp(r * r * gauss_space_coeff);
+            space_ofs[maxk++] = (int)(i * temp.step + j * cn);
+        }
+
+    Mat mspace_weight(1, d * d, CV_32FC1, space_weight);
+    Mat mspace_ofs(1, d * d, CV_32SC1, space_ofs);
+
+    metal_bilateralFilter(
+        temp,
+        dst,
+        mspace_weight,
+        mspace_ofs,
+        radius,
+        maxk,
+        gauss_color_coeff
+    );
+
+}
+
+#endif
 
 #ifdef HAVE_OPENCL
 
