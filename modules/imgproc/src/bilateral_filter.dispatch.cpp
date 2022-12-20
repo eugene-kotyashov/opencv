@@ -479,6 +479,11 @@ void bilateralFilter( InputArray _src, OutputArray _dst, int d,
     CV_OCL_RUN(_src.dims() <= 2 && _dst.isUMat(),
                ocl_bilateralFilter_8u(_src, _dst, d, sigmaColor, sigmaSpace, borderType))
 
+    #ifdef USE_METAL
+        metal_bilateralFilter_8u(_src, _dst, d, sigmaColor, sigmaSpace, borderType);
+        return;
+    #endif
+
     Mat src = _src.getMat(), dst = _dst.getMat();
 
     CV_IPP_RUN_FAST(ipp_bilateralFilter(src, dst, d, sigmaColor, sigmaSpace, borderType));
