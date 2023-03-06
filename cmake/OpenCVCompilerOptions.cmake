@@ -136,7 +136,7 @@ if(CV_GCC OR CV_CLANG)
   endif()
   add_extra_compiler_option(-Wsign-promo)
   add_extra_compiler_option(-Wuninitialized)
-  if(CV_GCC AND (CMAKE_CXX_COMPILER_VERSION VERSION_GREATER 6.0) AND (CMAKE_CXX_COMPILER_VERSION VERSION_LESS 7.0))
+  if(CV_GCC AND (CMAKE_CXX_COMPILER_VERSION VERSION_GREATER 6.0) AND (CMAKE_CXX_COMPILER_VERSION VERSION_LESS 7.0 OR ARM))
     add_extra_compiler_option(-Wno-psabi)
   endif()
   if(HAVE_CXX11)
@@ -314,6 +314,10 @@ if(MSVC)
     set(OPENCV_EXTRA_C_FLAGS "${OPENCV_EXTRA_C_FLAGS} /FS")
     set(OPENCV_EXTRA_CXX_FLAGS "${OPENCV_EXTRA_CXX_FLAGS} /FS")
   endif()
+
+  if(AARCH64 AND NOT MSVC_VERSION LESS 1930)
+    set(OPENCV_EXTRA_FLAGS "${OPENCV_EXTRA_FLAGS} /D _ARM64_DISTINCT_NEON_TYPES")
+  endif()
 endif()
 
 if(PROJECT_NAME STREQUAL "OpenCV")
@@ -433,6 +437,7 @@ if(MSVC)
     ocv_warnings_disable(CMAKE_CXX_FLAGS /wd4275) # non dll-interface class 'std::exception' used as base for dll-interface class 'cv::Exception'
     ocv_warnings_disable(CMAKE_CXX_FLAGS /wd4512) # Assignment operator could not be generated
     ocv_warnings_disable(CMAKE_CXX_FLAGS /wd4589) # Constructor of abstract class 'cv::ORB' ignores initializer for virtual base class 'cv::Algorithm'
+    ocv_warnings_disable(CMAKE_CXX_FLAGS /wd4819) # Symbols like delta or epsilon cannot be represented
   endif()
 
   if(CV_ICC AND NOT ENABLE_NOISY_WARNINGS)

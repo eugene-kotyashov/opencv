@@ -105,6 +105,26 @@ using a Boosted Cascade of Simple Features. IEEE CVPR, 2001. The paper is availa
     @defgroup objdetect_dnn_face DNN-based face detection and recognition
 Check @ref tutorial_dnn_face "the corresponding tutorial" for more details.
     @defgroup objdetect_common Common functions and classes
+    @defgroup objdetect_aruco ArUco markers and boards detection for robust camera pose estimation
+    @{
+        ArUco Marker Detection
+        Square fiducial markers (also known as Augmented Reality Markers) are useful for easy,
+        fast and robust camera pose estimation.
+
+        The main functionality of ArucoDetector class is detection of markers in an image. If the markers are grouped
+        as a board, then you can try to recover the missing markers with ArucoDetector::refineDetectedMarkers().
+        ArUco markers can also be used for advanced chessboard corner finding. To do this, group the markers in the
+        CharucoBoard and find the corners of the chessboard with the CharucoDetector::detectBoard().
+
+        The implementation is based on the ArUco Library by R. Muñoz-Salinas and S. Garrido-Jurado @cite Aruco2014.
+
+        Markers can also be detected based on the AprilTag 2 @cite wang2016iros fiducial detection method.
+
+        @sa @cite Aruco2014
+        This code has been originally developed by Sergio Garrido-Jurado as a project
+        for Google Summer of Code 2015 (GSoC 15).
+    @}
+
 @}
  */
 
@@ -383,7 +403,7 @@ public:
          };
     enum DescriptorStorageFormat { DESCR_FORMAT_COL_BY_COL, DESCR_FORMAT_ROW_BY_ROW };
 
-    /**@brief Creates the HOG descriptor and detector with default params.
+    /**@brief Creates the HOG descriptor and detector with default parameters.
 
     aqual to HOGDescriptor(Size(64,128), Size(16,16), Size(8,8), Size(8,8), 9 )
     */
@@ -419,6 +439,8 @@ public:
     {}
 
     /** @overload
+
+    Creates the HOG descriptor and detector and loads HOGDescriptor parameters and coefficients for the linear SVM classifier from a file.
     @param filename The file name containing HOGDescriptor properties and coefficients for the linear SVM classifier.
     */
     CV_WRAP HOGDescriptor(const String& filename)
@@ -457,19 +479,19 @@ public:
     */
     CV_WRAP virtual void setSVMDetector(InputArray svmdetector);
 
-    /** @brief Reads HOGDescriptor parameters from a cv::FileNode.
+    /** @brief Reads HOGDescriptor parameters and coefficients for the linear SVM classifier from a file node.
     @param fn File node
     */
     virtual bool read(FileNode& fn);
 
-    /** @brief Stores HOGDescriptor parameters in a cv::FileStorage.
+    /** @brief Stores HOGDescriptor parameters and coefficients for the linear SVM classifier in a file storage.
     @param fs File storage
     @param objname Object name
     */
     virtual void write(FileStorage& fs, const String& objname) const;
 
-    /** @brief loads HOGDescriptor parameters and coefficients for the linear SVM classifier from a file.
-    @param filename Path of the file to read.
+    /** @brief loads HOGDescriptor parameters and coefficients for the linear SVM classifier from a file
+    @param filename Name of the file to read.
     @param objname The optional name of the node to read (if empty, the first top-level node will be used).
     */
     CV_WRAP virtual bool load(const String& filename, const String& objname = String());
@@ -542,13 +564,14 @@ public:
     @param winStride Window stride. It must be a multiple of block stride.
     @param padding Padding
     @param scale Coefficient of the detection window increase.
-    @param finalThreshold Final threshold
+    @param groupThreshold Coefficient to regulate the similarity threshold. When detected, some objects can be covered
+    by many rectangles. 0 means not to perform grouping.
     @param useMeanshiftGrouping indicates grouping algorithm
     */
     CV_WRAP virtual void detectMultiScale(InputArray img, CV_OUT std::vector<Rect>& foundLocations,
                                   CV_OUT std::vector<double>& foundWeights, double hitThreshold = 0,
                                   Size winStride = Size(), Size padding = Size(), double scale = 1.05,
-                                  double finalThreshold = 2.0,bool useMeanshiftGrouping = false) const;
+                                  double groupThreshold = 2.0, bool useMeanshiftGrouping = false) const;
 
     /** @brief Detects objects of different sizes in the input image. The detected objects are returned as a list
     of rectangles.
@@ -560,13 +583,14 @@ public:
     @param winStride Window stride. It must be a multiple of block stride.
     @param padding Padding
     @param scale Coefficient of the detection window increase.
-    @param finalThreshold Final threshold
+    @param groupThreshold Coefficient to regulate the similarity threshold. When detected, some objects can be covered
+    by many rectangles. 0 means not to perform grouping.
     @param useMeanshiftGrouping indicates grouping algorithm
     */
     virtual void detectMultiScale(InputArray img, CV_OUT std::vector<Rect>& foundLocations,
                                   double hitThreshold = 0, Size winStride = Size(),
                                   Size padding = Size(), double scale = 1.05,
-                                  double finalThreshold = 2.0, bool useMeanshiftGrouping = false) const;
+                                  double groupThreshold = 2.0, bool useMeanshiftGrouping = false) const;
 
     /** @brief  Computes gradients and quantized gradient orientations.
     @param img Matrix contains the image to be computed
@@ -756,6 +780,12 @@ public:
      */
     CV_WRAP void setEpsY(double epsY);
 
+    /** @brief use markers to improve the position of the corners of the QR code
+     *
+     * alignmentMarkers using by default
+     */
+    CV_WRAP void setUseAlignmentMarkers(bool useAlignmentMarkers);
+
     /** @brief Detects QR code in image and returns the quadrangle containing the code.
      @param img grayscale or color (BGR) image containing (or not) QR code.
      @param points Output vector of vertices of the minimum-area quadrangle containing the code.
@@ -841,5 +871,7 @@ protected:
 
 #include "opencv2/objdetect/detection_based_tracker.hpp"
 #include "opencv2/objdetect/face.hpp"
+#include "opencv2/objdetect/aruco_detector.hpp"
+#include "opencv2/objdetect/charuco_detector.hpp"
 
 #endif
